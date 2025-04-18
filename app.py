@@ -4,7 +4,6 @@ from serpapi import GoogleSearch
 import os
 from io import BytesIO
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Load your API key securely
 SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
@@ -57,17 +56,16 @@ def get_prices(product_name, country_code):
     search = GoogleSearch(params)
     results = search.get_dict()
 
-    shopping_results = results.get("shopping_results", [])
+    # Debugging: Check if the response contains shopping results
+    if 'shopping_results' not in results:
+        st.write(f"Error or no shopping results for {product_name} in {country_code}: {results}")
+        return []
 
-    # Fallback for India
-    if not shopping_results and country_code.upper() == "IN":
-        params["gl"] = "us"
-        params["location"] = "United States"
-        results = GoogleSearch(params).get_dict()
-        shopping_results = results.get("shopping_results", [])
+    shopping_results = results.get("shopping_results", [])
 
     if not shopping_results:
         st.warning(f"No shopping results found for {product_name} in {country_code}")
+        return []
 
     seen_sites = set()
     items = []
@@ -93,42 +91,6 @@ def get_prices(product_name, country_code):
 
     return items
 
-# Function to fetch prices concurrently
-def fetch_prices_concurrently(products, regions):
-    results = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_product = {}
-        for product in products:
-            for region in regions:
-                future = executor.submit(get_prices, product, region)
-                future_to_product[future] = (product, region)
-
-        for future in as_completed(future_to_product):
-            product, region = future_to_product[future]
-            price_data = future.result()
-
-            if price_data:
-                # Find the lowest price for this product
-                lowest_price = min(p[1] for p in price_data)
-                lowest_price_site = [site for site, price in price_data if price == lowest_price][0]
-
-                # Add each site and its price as a separate row
-                for site, price in price_data:
-                    results.append({
-                        "Product": product if site == price_data[0][0] else "",  # Show product name only on first site
-                        "Region": region,
-                        "Site & Price": f"{site}({price})",
-                        "Lowest Price & Site": f"{lowest_price_site}({lowest_price})" if site == lowest_price_site else ""
-                    })
-            else:
-                results.append({
-                    "Product": product,
-                    "Region": region,
-                    "Site & Price": "No results found",
-                    "Lowest Price & Site": None
-                })
-    return results
-
 # Main app logic
 if uploaded_file:
     products = parse_file(uploaded_file)
@@ -137,8 +99,33 @@ if uploaded_file:
     selected_regions = ["US", "IN"]
 
     if products:
-        with st.spinner("🔍 Searching for product prices..."):
-            results = fetch_prices_concurrently(products, selected_regions)
+        results = []
+
+        for product in products:
+            for region in selected_regions:
+                st.write(f"Fetching prices for {product} in {region}...")  # Debugging message
+                price_data = get_prices(product, region)
+
+                if price_data:
+                    # Find the lowest price for this product
+                    lowest_price = min(p[1] for p in price_data)
+                    lowest_price_site = [site for site, price in price_data if price == lowest_price][0]
+
+                    # Add each site and its price as a separate row
+                    for site, price in price_data:
+                        results.append({
+                            "Product": product if site == price_data[0][0] else "",  # Show product name only on first site
+                            "Region": region,
+                            "Site & Price": f"{site}({price})",
+                            "Lowest Price & Site": f"{lowest_price_site}({lowest_price})" if site == lowest_price_site else ""
+                        })
+                else:
+                    results.append({
+                        "Product": product,
+                        "Region": region,
+                        "Site & Price": "No results found",
+                        "Lowest Price & Site": None
+                    })
 
         # Final Results DataFrame
         if results:
