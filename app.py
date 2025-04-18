@@ -22,34 +22,26 @@ chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7, openai_api_key=o
 conversation = ConversationChain(llm=chat_model)
 
 # Define search function using SerpAPI to scrape product prices
-def get_prices(product_name):
-    search_params = {
+def search_product_prices(product_name):
+    params = {
         "engine": "google_shopping",
         "q": product_name,
         "api_key": SERPAPI_KEY,
     }
 
-    search = GoogleSearch(search_params)
+    search = GoogleSearchResults(params)
     results = search.get_dict()
 
-    products = []
-
-    for item in results.get("shopping_results", []):
-        title = item.get("title")
-        price = item.get("price")
-        source = item.get("source")
-        link = item.get("link")
-
-        if price:
-            products.append({
-                "Product": product_name,
-                "Title": title,
-                "Price": price,
-                "Site": source,
-                "Link": link
+    prices = []
+    if "shopping_results" in results:
+        for item in results["shopping_results"]:
+            prices.append({
+                "title": item.get("title"),
+                "price": item.get("price"),
+                "source": item.get("source"),
+                "link": item.get("link"),
             })
-
-    return pd.DataFrame(products)
+    return prices
 
 # Function to save prices to a CSV file (for price history tracking)
 def save_to_csv(product_name, prices, sites):
