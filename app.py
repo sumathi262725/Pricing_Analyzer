@@ -8,7 +8,7 @@ SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126
 
 # Streamlit UI
 st.title("🛍️ Product Price Comparison")
-st.write("Upload a list of product names (CSV or TXT), and we'll find prices from shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳.")
+st.write("Upload a list of product names (CSV or TXT), and select regions to compare prices from shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳.")
 
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
@@ -58,35 +58,44 @@ def get_prices(product_name, country_code):
 # Main logic
 if uploaded_file:
     products = parse_file(uploaded_file)
-    results = []
 
-    with st.spinner("🔎 Searching for prices..."):
-        for product in products:
-            for region in ["US", "UK", "IN"]:
-                price_data = get_prices(product, region)
-                if price_data:
-                    lowest_price = min(p[1] for p in price_data)
-                    for site, price in price_data:
+    # Let user select regions
+    selected_regions = st.multiselect(
+        "🌍 Select regions to search prices in:",
+        options=["US", "UK", "IN"],
+        default=["US"]
+    )
+
+    if selected_regions:
+        results = []
+
+        with st.spinner("🔎 Searching for prices..."):
+            for product in products:
+                for region in selected_regions:
+                    price_data = get_prices(product, region)
+                    if price_data:
+                        lowest_price = min(p[1] for p in price_data)
+                        for site, price in price_data:
+                            results.append({
+                                "Product": product,
+                                "Region": region,
+                                "Site": site,
+                                "Price": price,
+                                "Lowest Price in Region": lowest_price
+                            })
+                    else:
                         results.append({
                             "Product": product,
                             "Region": region,
-                            "Site": site,
-                            "Price": price,
-                            "Lowest Price in Region": lowest_price
+                            "Site": "No results found",
+                            "Price": None,
+                            "Lowest Price in Region": None
                         })
-                else:
-                    results.append({
-                        "Product": product,
-                        "Region": region,
-                        "Site": "No results found",
-                        "Price": None,
-                        "Lowest Price in Region": None
-                    })
 
-    df = pd.DataFrame(results)
-    st.success("✅ Price comparison complete!")
-    st.dataframe(df)
+        df = pd.DataFrame(results)
+        st.success("✅ Price comparison complete!")
+        st.dataframe(df)
 
-    # Download CSV
-    csv = df.to_csv(index=False)
-    st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
+        # Download CSV
+        csv = df.to_csv(index=False)
+        st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
