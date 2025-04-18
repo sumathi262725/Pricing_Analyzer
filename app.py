@@ -1,67 +1,51 @@
 import streamlit as st
 import pandas as pd
 import time
+import os
+from datetime import datetime
 from selenium import webdriver
-from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from datetime import datetime
+from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
 from fpdf import FPDF
-import os
 
 # CONFIG
 st.set_page_config(page_title="AI Price Tracker", layout="wide")
 
-# Initialize Selenium WebDriver with Headless Chrome
-def init_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Ensure headless mode for background scraping
-    chrome_options.add_argument("--no-sandbox")
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
-    return driver
-
-# Fetch product prices via scraping
+# Scrape product prices from Google Shopping
 def get_prices(product_name):
-    prices, sites = [], []
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
 
-    # Initialize the WebDriver
-    driver = init_driver()
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
 
-    try:
-        # Amazon Search
-        amazon_url = f"https://www.amazon.com/s?k={product_name.replace(' ', '+')}"
-        driver.get(amazon_url)
-        time.sleep(3)  # Let the page load
-        try:
-            amazon_price = driver.find_element(By.CSS_SELECTOR, '.a-price .a-offscreen').text
-            prices.append(float(amazon_price.replace("$", "").replace(",", "")))
-            sites.append("Amazon")
-        except:
-            pass
+    search_query = product_name.replace(" ", "+")
+    url = f"https://www.google.com/search?q={search_query}&tbm=shop"
 
-        # Walmart Search
-        walmart_url = f"https://www.walmart.com/search/?query={product_name.replace(' ', '%20')}"
-        driver.get(walmart_url)
-        time.sleep(3)  # Let the page load
-        try:
-            walmart_price = driver.find_element(By.CSS_SELECTOR, '.price-main .visuallyhidden').text
-            prices.append(float(walmart_price.replace("$", "").replace(",", "")))
-            sites.append("Walmart")
-        except:
-            pass
+    driver.get(url)
+    time.sleep(3)
 
-        # Target Search
-        target_url = f"https://www.target.com/s?searchTerm={product_name.replace(' ', '%20')}"
-        driver.get(target_url)
-        time.sleep(3)  # Let the page load
-        try:
-            target_price = driver.find_element(By.CSS_SELECTOR, '.h-padding-r-tight span').text
-            prices.append(float(target_price.replace("$", "").replace(",", "")))
-            sites.append("Target")
-        except:
-            pass
-    finally:
-        driver.quit()
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    driver.quit()
+
+    prices = []
+    sites = []
+
+    for item in soup.select("div.sh-dgr__content"):
+        price_tag = item.select_one("span.T14wmb")
+        site_tag = item.select_one("div.aULzUe.IuHnof")
+        if price_tag and site_tag:
+            try:
+                price = float(price_tag.text.replace("$", "").replace(",", ""))
+                prices.append(price)
+                sites.append(site_tag.text.strip())
+            except:
+                continue
 
     return prices, sites
 
