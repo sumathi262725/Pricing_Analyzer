@@ -1,86 +1,148 @@
-# price_comparison_india.py
 import streamlit as st
 import pandas as pd
-from serpapi import GoogleSearch
-import os
-import re
-from io import BytesIO
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+import time
 
-SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+# Setup Chrome WebDriver
+def create_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    return webdriver.Chrome(options=chrome_options)
 
+# Flipkart scraper
+def scrape_flipkart(driver, product_name):
+    driver.get(f"https://www.flipkart.com/search?q={product_name}")
+    time.sleep(2)
+    try:
+        items = driver.find_elements(By.CLASS_NAME, "_1AtVbE")[:5]
+        for item in items:
+            try:
+                name = item.find_element(By.CLASS_NAME, "_4rR01T").text
+                price = item.find_element(By.CLASS_NAME, "_30jeq3").text
+                return f"Flipkart({price})"
+            except:
+                continue
+    except:
+        pass
+    return "Flipkart(Not Found)"
+
+# Amazon India scraper
+def scrape_amazon(driver, product_name):
+    driver.get(f"https://www.amazon.in/s?k={product_name}")
+    time.sleep(2)
+    try:
+        items = driver.find_elements(By.CSS_SELECTOR, ".s-main-slot .s-result-item")[:5]
+        for item in items:
+            try:
+                name = item.find_element(By.TAG_NAME, "h2").text
+                price = item.find_element(By.CLASS_NAME, "a-price-whole").text
+                currency = "₹"
+                return f"Amazon India({currency}{price})"
+            except:
+                continue
+    except:
+        pass
+    return "Amazon India(Not Found)"
+
+# Croma scraper
+def scrape_croma(driver, product_name):
+    driver.get(f"https://www.croma.com/searchB?q={product_name}")
+    time.sleep(2)
+    try:
+        items = driver.find_elements(By.CLASS_NAME, "product-item")[:5]
+        for item in items:
+            try:
+                name = item.find_element(By.CLASS_NAME, "product-title").text
+                price = item.find_element(By.CLASS_NAME, "new-price").text
+                return f"Croma({price})"
+            except:
+                continue
+    except:
+        pass
+    return "Croma(Not Found)"
+
+# Reliance Digital scraper
+def scrape_reliance_digital(driver, product_name):
+    driver.get(f"https://www.reliancedigital.in/search?q={product_name}:relevance")
+    time.sleep(2)
+    try:
+        items = driver.find_elements(By.CLASS_NAME, "sp__product")[:5]
+        for item in items:
+            try:
+                price = item.find_element(By.CLASS_NAME, "TextWeb__Text-sc-1cyx778-0.giKaCJ.offer-price").text
+                return f"Reliance Digital({price})"
+            except:
+                continue
+    except:
+        pass
+    return "Reliance Digital(Not Found)"
+
+# Tata CLiQ scraper
+def scrape_tatacliq(driver, product_name):
+    driver.get(f"https://www.tatacliq.com/search/?searchCategory=all&text={product_name}")
+    time.sleep(2)
+    try:
+        items = driver.find_elements(By.CLASS_NAME, "ProductModule__Content-sc-1fg9z9i-2")[:5]
+        for item in items:
+            try:
+                price = item.find_element(By.CLASS_NAME, "ProductDescription__PriceContainer-sc-1v7ly3i-6").text
+                return f"Tata CLiQ({price})"
+            except:
+                continue
+    except:
+        pass
+    return "Tata CLiQ(Not Found)"
+
+# Streamlit UI
 st.set_page_config(page_title="🇮🇳 India Price Comparison", layout="wide")
-st.title("🇮🇳 Product Price Comparison - India")
-st.write("Upload a list of products and get their prices from top Indian online stores.")
+st.title("🇮🇳 India Product Price Comparison")
 
 uploaded_file = st.file_uploader("📄 Upload product list (CSV or TXT)", type=["csv", "txt"])
 
 def parse_file(file):
     if file.name.endswith(".csv"):
-        return pd.read_csv(file).iloc[:, 0].dropna().tolist()
+        df = pd.read_csv(file)
+        return df.iloc[:, 0].dropna().tolist()
     elif file.name.endswith(".txt"):
-        return [line.strip() for line in file.read().decode("utf-8").splitlines() if line.strip()]
+        content = file.read().decode("utf-8").splitlines()
+        return [line.strip() for line in content if line.strip()]
     return []
 
-def get_base_site_name(site):
-    match = re.match(r"([a-zA-Z0-9]+)", site)
-    return match.group(1) if match else site
-
-def get_prices_india(product):
-    params = {
-        "engine": "google_shopping",
-        "q": product,
-        "api_key": SERPAPI_KEY,
-        "hl": "en",
-        "gl": "in",
-        "location": "India"
-    }
-    results = GoogleSearch(params).get_dict()
-    shopping_results = results.get("shopping_results", [])
-    seen_sites = set()
-    items = []
-
-    for item in shopping_results:
-        site = item.get("source")
-        price_str = item.get("price")
-        currency_symbol = item.get("currency")
-
-        if site and price_str and currency_symbol:
-            base = get_base_site_name(site)
-            if base not in seen_sites:
-                price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
-                try:
-                    price = float(price_cleaned)
-                    items.append((base, f"{currency_symbol}{price}"))
-                    seen_sites.add(base)
-                except ValueError:
-                    continue
-    return items
-
 if uploaded_file:
-    products = parse_file(uploaded_file)
-    results = []
+    product_list = parse_file(uploaded_file)
 
-    for product in products:
-        price_data = get_prices_india(product)
-        if price_data:
-            lowest_price = min(price_data, key=lambda x: float(re.sub(r'[^\d.]', '', x[1])))
-            for site, price in price_data:
+    if st.button("🔍 Search Prices"):
+        driver = create_driver()
+        results = []
+
+        for product in product_list:
+            prices = [
+                scrape_flipkart(driver, product),
+                scrape_amazon(driver, product),
+                scrape_croma(driver, product),
+                scrape_reliance_digital(driver, product),
+                scrape_tatacliq(driver, product)
+            ]
+
+            numeric_prices = [(p, float(''.join(filter(str.isdigit, p)))) for p in prices if any(c.isdigit() for c in p)]
+            lowest = min(numeric_prices, key=lambda x: x[1])[0] if numeric_prices else "N/A"
+
+            for p in prices:
                 results.append({
-                    "Product": product if site == price_data[0][0] else "",
-                    "Region": "India",
-                    "Site & Price": f"{site}({price})",
-                    "Lowest Price & Site": f"{lowest_price[0]}({lowest_price[1]})" if site == lowest_price[0] else ""
+                    "Product": product,
+                    "Region": "IN",
+                    "Site & Price": p,
+                    "Lowest Price & Site": lowest if p == lowest else ""
                 })
-        else:
-            results.append({
-                "Product": product,
-                "Region": "India",
-                "Site & Price": "No results found",
-                "Lowest Price & Site": ""
-            })
 
-    df = pd.DataFrame(results)
-    st.dataframe(df)
+        driver.quit()
 
-    csv = df.to_csv(index=False)
-    st.download_button("📥 Download CSV", data=csv, file_name="price_comparison_india.csv", mime="text/csv")
+        df = pd.DataFrame(results)
+        st.dataframe(df)
+
+        csv = df.to_csv(index=False)
+        st.download_button("\ud83d\udcc5 Download CSV", data=csv, file_name="india_price_comparison.csv", mime="text/csv")
