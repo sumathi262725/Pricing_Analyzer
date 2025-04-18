@@ -4,12 +4,15 @@ from serpapi import GoogleSearch
 import os
 
 # Load SerpAPI key from environment or use hardcoded fallback
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
 
 # App title
 st.set_page_config(page_title="Product Price Comparison", layout="centered")
 st.title("🛍️ Product Price Comparison")
 st.write("Upload a list of product names (CSV or TXT), and we’ll find the best prices across sites.")
+
+# Country selection
+country_code = st.selectbox("Select Country for Search", ["US", "UK", "DE", "IN", "CA"], index=0)
 
 # File uploader
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
@@ -23,14 +26,14 @@ def parse_file(file):
         return [line.strip() for line in file.readlines()]
     return []
 
-# Query SerpAPI for shopping prices
-def get_prices(product_name):
+# Query SerpAPI for shopping prices with country-based filtering
+def get_prices(product_name, country_code):
     params = {
         "engine": "google_shopping",
         "q": product_name,
         "api_key": SERPAPI_KEY,
-        "hl": "en",
-        "gl": "us"
+        "hl": "en",  # English language
+        "gl": country_code.lower()  # Geolocation by country
     }
     search = GoogleSearch(params)
     results = search.get_dict()
@@ -70,7 +73,7 @@ if uploaded_file:
 
     with st.spinner("🔍 Searching for prices..."):
         for product in products:
-            price_data = get_prices(product)
+            price_data = get_prices(product, country_code)
             if price_data:
                 sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
                 lowest_entry = min(price_data, key=lambda x: x[1])
