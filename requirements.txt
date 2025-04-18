@@ -7,4 +7,5 @@ matplotlib
 numpy
 scikit-learn
 tqdm
+fpdf
 python-dotenv
