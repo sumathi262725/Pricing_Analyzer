@@ -9,3 +9,5 @@ scikit-learn
 tqdm
 fpdf
 python-dotenv
+webdriver_manager==4.9.0
+
