@@ -1,4 +1,5 @@
 streamlit
+serpapi
 pandas
 requests
 beautifulsoup4
