@@ -8,11 +8,14 @@ SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126
 
 # Streamlit UI
 st.title("🛍️ Product Price Comparison")
-st.write("Upload a list of product names (CSV or TXT), and select regions to compare prices from shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳.")
+st.write(
+    "Upload a list of product names (CSV or TXT), and select regions to compare prices from shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳."
+)
 
+# File uploader
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
-# Parse uploaded file
+# Function to parse product list
 def parse_file(file):
     if file.name.endswith(".csv"):
         df = pd.read_csv(file)
@@ -22,13 +25,9 @@ def parse_file(file):
         return [line.strip() for line in content if line.strip()]
     return []
 
-# Search product prices using SerpAPI
+# Function to fetch prices from SerpAPI
 def get_prices(product_name, country_code):
-    gl_map = {
-        "US": "us",
-        "UK": "uk",
-        "IN": "in"
-    }
+    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
     gl_value = gl_map.get(country_code.upper(), "us")
 
     params = {
@@ -36,21 +35,25 @@ def get_prices(product_name, country_code):
         "q": product_name,
         "api_key": SERPAPI_KEY,
         "hl": "en",
-        "gl": gl_value
+        "gl": gl_value,
     }
 
     search = GoogleSearch(params)
     results = search.get_dict()
 
     items = []
+    seen_sites = set()
+
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
-        if site and price_str:
+
+        if site and price_str and site not in seen_sites:
             price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
             try:
                 price = float(price_cleaned)
                 items.append((site, price))
+                seen_sites.add(site)
             except:
                 continue
     return items
@@ -59,14 +62,14 @@ def get_prices(product_name, country_code):
 if uploaded_file:
     products = parse_file(uploaded_file)
 
-    # Let user select regions
+    # Mandatory region selection
     selected_regions = st.multiselect(
-        "🌍 Select regions to search prices in:",
-        options=["US", "UK", "IN"],
-        default=["US"]
+        "🌍 Select one or more regions:", options=["US", "UK", "IN"], default=[]
     )
 
-    if selected_regions:
+    if not selected_regions:
+        st.warning("⚠️ Please select at least one region to continue.")
+    else:
         results = []
 
         with st.spinner("🔎 Searching for prices..."):
@@ -92,10 +95,15 @@ if uploaded_file:
                             "Lowest Price in Region": None
                         })
 
+        # Display and download results
         df = pd.DataFrame(results)
         st.success("✅ Price comparison complete!")
         st.dataframe(df)
 
-        # Download CSV
         csv = df.to_csv(index=False)
-        st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
+        st.download_button(
+            "📥 Download Results as CSV",
+            data=csv,
+            file_name="price_comparison.csv",
+            mime="text/csv",
+        )
