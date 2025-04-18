@@ -1,5 +1,5 @@
-serpapi
 streamlit
 pandas
-requests
-python-dotenv
+google-search-results
+openpyxl
+xlsxwriter
