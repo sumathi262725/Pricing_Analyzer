@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from serpapi import GoogleSearch
+from google_search_results import GoogleSearchResults as GoogleSearch
 import os
 
 # Set your SerpAPI key securely (you can also set this in Streamlit Secrets)
