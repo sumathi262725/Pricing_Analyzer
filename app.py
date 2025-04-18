@@ -1,158 +1,78 @@
 import streamlit as st
 import pandas as pd
-import requests
-from datetime import datetime
-from bs4 import BeautifulSoup
-import matplotlib.pyplot as plt
-from fpdf import FPDF
+from serpapi import GoogleSearch
 import os
 
-# CONFIG
-st.set_page_config(page_title="AI Price Tracker", layout="wide")
-ZENROWS_API_KEY = os.getenv("ZENROWS_API_KEY")
+# Set your SerpAPI key securely (you can also set this in Streamlit Secrets)
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
-# Fetch product prices using ZenRows + Google Shopping
-def get_prices(product_name):
-    url = "https://api.zenrows.com/v1/"
-    params = {
-        "apikey": ZENROWS_API_KEY,
-        "url": f"https://www.google.com/search?tbm=shop&q={product_name}",
-        "js_render": "true"
-    }
+# Upload section
+st.title("🛍️ Product Price Comparison Tool")
+uploaded_file = st.file_uploader("Upload a file with product names (CSV or TXT)", type=["csv", "txt"])
 
-    response = requests.get(url, params=params)
-    soup = BeautifulSoup(response.text, "html.parser")
+# Helper to parse uploaded file
+def parse_uploaded_file(file):
+    if file.name.endswith(".csv"):
+        df = pd.read_csv(file)
+        return df.iloc[:, 0].dropna().tolist()
+    elif file.name.endswith(".txt"):
+        return [line.strip() for line in file.readlines()]
+    return []
 
-    prices, sites = [], []
+# Helper to extract prices from search results
+def extract_prices(product_name):
+    search = GoogleSearch({
+        "q": product_name,
+        "api_key": SERPAPI_KEY,
+        "engine": "google_shopping",
+        "hl": "en",
+        "gl": "us"
+    })
 
-    for item in soup.select("div.sh-dgr__content"):
-        price_tag = item.select_one("span.T14wmb")
-        site_tag = item.select_one("div.aULzUe.IuHnof")
-        if price_tag and site_tag:
+    results = search.get_dict()
+    product_data = []
+
+    for item in results.get("shopping_results", []):
+        site = item.get("source")
+        price_str = item.get("price")
+        if price_str and site:
             try:
-                price = float(price_tag.text.replace("$", "").replace(",", ""))
-                prices.append(price)
-                sites.append(site_tag.text.strip())
+                price = float(price_str.replace("$", "").replace(",", "").strip())
+                product_data.append((site, price))
             except:
                 continue
 
-    return prices, sites
+    return product_data
 
-# Save prices to history
-def save_to_csv(product_name, prices, sites):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data = {
-        "product_name": product_name,
-        "timestamp": now,
-        "prices": [', '.join(map(str, prices))],
-        "sites": [', '.join(sites)],
-        "lowest_price": [min(prices) if prices else None],
-    }
-    df = pd.DataFrame(data)
-    file_path = "price_history.csv"
-    if os.path.exists(file_path):
-        df_existing = pd.read_csv(file_path)
-        df = pd.concat([df_existing, df], ignore_index=True)
-    df.to_csv(file_path, index=False)
+# Display results
+if uploaded_file:
+    product_list = parse_uploaded_file(uploaded_file)
+    final_data = []
 
-# Plot trends
-def plot_price_trends():
-    try:
-        df = pd.read_csv("price_history.csv")
-        if df.empty:
-            st.info("No data to plot.")
-            return
+    with st.spinner("🔍 Searching for prices..."):
+        for product in product_list:
+            data = extract_prices(product)
+            if data:
+                lowest_price = min(price for _, price in data)
+                for site, price in data:
+                    final_data.append({
+                        "Product": product,
+                        "Site": site,
+                        "Price ($)": price,
+                        "Lowest Price ($)": lowest_price
+                    })
+            else:
+                final_data.append({
+                    "Product": product,
+                    "Site": "No results",
+                    "Price ($)": None,
+                    "Lowest Price ($)": None
+                })
 
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df['lowest_price'] = pd.to_numeric(df['lowest_price'], errors='coerce')
+    df = pd.DataFrame(final_data)
+    st.success("✅ Done!")
+    st.dataframe(df)
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        for product in df['product_name'].unique():
-            product_df = df[df['product_name'] == product]
-            ax.plot(product_df['timestamp'], product_df['lowest_price'], label=product)
-
-        ax.set_title("Price Trends Over Time")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Lowest Price")
-        ax.legend()
-        st.pyplot(fig)
-    except Exception as e:
-        st.error(f"Error plotting trends: {e}")
-
-# Export functionality
-def export_data(export_option):
-    df = pd.read_csv("price_history.csv")
-    if export_option == "CSV":
-        df.to_csv("export.csv", index=False)
-        st.download_button("Download CSV", data=open("export.csv").read(), file_name="price_data.csv")
-    elif export_option == "Excel":
-        df.to_excel("export.xlsx", index=False)
-        st.download_button("Download Excel", data=open("export.xlsx", "rb").read(), file_name="price_data.xlsx")
-    elif export_option == "PDF":
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Price History", ln=True, align='C')
-        pdf.ln(10)
-        for _, row in df.iterrows():
-            txt = f"{row['timestamp']} | {row['product_name']} | {row['lowest_price']} | {row['sites']}"
-            pdf.cell(200, 10, txt=txt, ln=True)
-        pdf.output("export.pdf")
-        st.download_button("Download PDF", data=open("export.pdf", "rb").read(), file_name="price_data.pdf")
-
-# MAIN APP
-def main():
-    st.title("🛒 AI Price Tracker")
-
-    uploaded_file = st.file_uploader("Upload CSV of product names", type="csv")
-    results_df = pd.DataFrame()
-
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        if "product_name" not in df.columns:
-            st.error("CSV must contain a 'product_name' column.")
-            return
-
-        for product in df["product_name"]:
-            prices, sites = get_prices(product)
-            if prices:
-                save_to_csv(product, prices, sites)
-                results_df = pd.concat([results_df, pd.DataFrame([{
-                    "Product Name": product,
-                    "Prices": ", ".join(f"${p:.2f}" for p in prices),
-                    "Sites": ", ".join(sites),
-                    "Lowest Price": f"${min(prices):.2f}"
-                }])], ignore_index=True)
-        st.subheader("📊 Comparison Table")
-        st.dataframe(results_df)
-
-    # Text input product price search
-    st.subheader("🔍 Check a product's price:")
-    user_input = st.text_input("Enter a product name")
-
-    if user_input:
-        prices, sites = get_prices(user_input)
-        if prices:
-            save_to_csv(user_input, prices, sites)
-            row = {
-                "Product Name": user_input,
-                "Prices": ", ".join(f"${p:.2f}" for p in prices),
-                "Sites": ", ".join(sites),
-                "Lowest Price": f"${min(prices):.2f}"
-            }
-            st.dataframe(pd.DataFrame([row]))
-        else:
-            st.warning("No prices found.")
-
-    # Trend
-    st.subheader("📈 Price Trends")
-    plot_price_trends()
-
-    # Export
-    st.subheader("📤 Export Options")
-    export_option = st.selectbox("Choose format", ["CSV", "Excel", "PDF"])
-    if st.button("Export"):
-        export_data(export_option)
-
-if __name__ == "__main__":
-    main()
+    # Download as CSV
+    csv = df.to_csv(index=False)
+    st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
