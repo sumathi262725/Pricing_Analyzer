@@ -1,8 +1,8 @@
 streamlit
 pandas
-requests
+selenium
+webdriver-manager
+beautifulsoup4
 matplotlib
 fpdf
-selenium
-webdriver_manager
 
