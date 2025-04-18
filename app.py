@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
+from google_search_results import GoogleSearch
 import os
 
 # Load your API key securely (via env or hardcoded)
