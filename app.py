@@ -16,8 +16,14 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # LangChain Chat setup
-chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
-conversation = ConversationChain(llm=chat_model)
+
+chat_model = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0.7,
+    openai_api_key=os.getenv("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")  # fallback to env variable manually
+)
+
+
 
 # Fetch product prices via SerpAPI
 def get_prices(product_name):
