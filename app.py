@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 from serpapi import GoogleSearch
 import os
@@ -47,14 +47,10 @@ def get_prices(product_name, country_code):
     search = GoogleSearch(params)
     results = search.get_dict()
 
-    # Debugging the API response
-    st.write(f"🔍 API Response for {product_name} in {country_code}: {results}")
-    
     shopping_results = results.get("shopping_results", [])
 
     # Fallback for India
     if not shopping_results and country_code.upper() == "IN":
-        st.info(f"🔁 No results in India for '{product_name}'. Trying US fallback.")
         params["gl"] = "us"
         params["location"] = "United States"
         results = GoogleSearch(params).get_dict()
@@ -62,7 +58,7 @@ def get_prices(product_name, country_code):
 
     # Ensure there are valid shopping results
     if not shopping_results:
-        st.warning(f"No shopping results found for {product_name} in {country_code}")
+        return []
 
     seen_sites = set()
     items = []
