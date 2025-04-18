@@ -1,5 +1,10 @@
 streamlit
 pandas
-requests
-beautifulsoup4
-google-search-results
+openai
+langchain
+serpapi
+matplotlib
+numpy
+scikit-learn
+tqdm
+python-dotenv
