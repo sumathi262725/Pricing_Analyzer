@@ -2,130 +2,183 @@ import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
 import os
-import concurrent.futures
+import requests
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from collections import defaultdict
+from io import BytesIO
 
-# Load SerpAPI key from environment or use hardcoded fallback
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+# Load environment variables
+load_dotenv()
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 
-# App title
-st.set_page_config(page_title="Product Price Comparison", layout="centered")
-st.title("🛍️ Product Price Comparison")
-st.write("Upload a list of product names (CSV or TXT), and we’ll find the best prices across sites.")
+# Supported countries for SerpAPI's Google Shopping layout
+SUPPORTED_COUNTRIES = {
+    "US": "United States",
+    "CA": "Canada",
+    "AU": "Australia",
+    "NZ": "New Zealand",
+    "CX": "Christmas Island",
+    "CC": "Cocos (Keeling) Islands",
+    "NF": "Norfolk Island",
+    "HM": "Heard Island and McDonald Islands",
+    "TK": "Tokelau"
+}
 
-# File uploader
-uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
+# Extended country list
+ALL_COUNTRIES = {
+    "US": "United States",
+    "CA": "Canada",
+    "AU": "Australia",
+    "NZ": "New Zealand",
+    "IN": "India",
+    "UK": "United Kingdom",
+    "DE": "Germany",
+    "CX": "Christmas Island",
+    "CC": "Cocos (Keeling) Islands",
+    "NF": "Norfolk Island",
+    "HM": "Heard Island and McDonald Islands",
+    "TK": "Tokelau"
+}
 
-# Parse file contents
-def parse_file(file):
-    if file.name.endswith(".csv"):
-        df = pd.read_csv(file)
-        return df.iloc[:, 0].dropna().tolist()
-    elif file.name.endswith(".txt"):
-        return [line.strip() for line in file.readlines()]
-    return []
+# Improved fallback search for unsupported regions using Bing
+def fallback_bing_search(product):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    query = f"{product} price"
+    url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-# Query SerpAPI for shopping prices with country-based filtering
-def get_prices(product_name, country_code):
-    params = {
-        "engine": "google_shopping",
-        "q": product_name,
-        "api_key": SERPAPI_KEY,
-        "hl": "en",  # English language
-        "gl": country_code.lower()  # Geolocation by country
-    }
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    
-    items = []
-    for item in results.get("shopping_results", []):
-        site = item.get("source")
-        price_str = item.get("price")
-        if site and price_str:
-            try:
-                price = float(price_str.replace("$", "").replace(",", "").strip())
-                items.append((site, price))
-            except:
+    prices = []
+    seen_sites = set()
+    for li in soup.select("li.b_algo"):
+        title = li.find("h2")
+        snippet = li.find("p")
+        link = li.find("a")
+        if title and snippet and link:
+            text = snippet.text
+            site_name = link.get("href", "").split("/")[2] if "http" in link.get("href", "") else link.get("href", "")
+            if site_name in seen_sites:
                 continue
-    
-    # Group prices by marketplace (e.g., eBay, Amazon) and get the lowest price per marketplace
-    grouped_items = {}
-    for site, price in items:
-        # We identify the marketplace by checking the site string
-        marketplace = site.split()[0]  # First part is typically the marketplace name (e.g., "eBay", "Amazon")
-        if marketplace not in grouped_items:
-            grouped_items[marketplace] = []
-        grouped_items[marketplace].append(price)
-    
-    # Get lowest price per marketplace
-    final_items = []
-    for marketplace, prices in grouped_items.items():
-        lowest_price = min(prices)
-        final_items.append((marketplace, lowest_price))
+            seen_sites.add(site_name)
+            for word in text.split():
+                if "$" in word or "Rs." in word:
+                    price_text = word.replace("Rs.", "").replace("$", "").replace(",", "")
+                    try:
+                        price = float(price_text)
+                        prices.append((site_name, price))
+                        break
+                    except:
+                        continue
+    return prices
 
-    return final_items
+# Streamlit UI
+st.title("\ud83d\udcbc Product Price Comparison App")
+st.markdown("Upload a list of product names to compare prices across multiple sites.")
 
-# Function to handle fetching prices in parallel for multiple products
-def fetch_prices_parallel(products, country_code):
-    grouped_results = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Parallel fetching of prices
-        futures = {executor.submit(get_prices, product, country_code): product for product in products}
-        for future in concurrent.futures.as_completed(futures):
-            product = futures[future]
-            try:
-                price_data = future.result()
-                if price_data:
-                    sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
-                    lowest_entry = min(price_data, key=lambda x: x[1])
-                    lowest_site, lowest_price = lowest_entry
-                    grouped_results.append({
-                        "Product": product,
-                        "Sites & Prices": "<br>".join(sites_prices),
-                        "Lowest Price ($)": f"<b>${lowest_price:.2f}</b> ({lowest_site})",
-                        "_sort_price": lowest_price  # for sorting
-                    })
-                else:
-                    grouped_results.append({
-                        "Product": product,
-                        "Sites & Prices": "No results found",
-                        "Lowest Price ($)": "N/A",
-                        "_sort_price": float("inf")  # sort missing values last
-                    })
-            except Exception as e:
-                grouped_results.append({
-                    "Product": product,
-                    "Sites & Prices": "Error fetching data",
-                    "Lowest Price ($)": "N/A",
-                    "_sort_price": float("inf")
-                })
-    
-    return grouped_results
+# Upload CSV file
+uploaded_file = st.file_uploader("Upload a CSV file with a column named 'product'", type=["csv"])
 
-# Main app logic
 if uploaded_file:
-    # Step 1: Parse the product list
-    products = parse_file(uploaded_file)
-    
-    # Step 2: Display country selection after the file upload
-    country_code = st.selectbox("Select Country for Search", ["US", "UK", "DE", "IN", "CA"], index=0)
+    df = pd.read_csv(uploaded_file)
+    if 'product' not in df.columns:
+        st.error("CSV must contain a 'product' column.")
+    else:
+        # Select country
+        country_code = st.selectbox(
+            "\ud83c\udf0d Select Country for Search",
+            options=list(ALL_COUNTRIES.keys()),
+            format_func=lambda x: ALL_COUNTRIES[x]
+        )
 
-    # Step 3: Run the search for prices in parallel
-    grouped_results = []
+        if country_code not in SUPPORTED_COUNTRIES:
+            st.warning(
+                f"\u26a0\ufe0f The selected country ({ALL_COUNTRIES[country_code]}) may not return results due to limitations in Google Shopping's supported layout via SerpAPI."
+            )
 
-    with st.spinner("🔍 Searching for prices..."):
-        grouped_results = fetch_prices_parallel(products, country_code)
+        st.info(
+            "\u2139\ufe0f Currently, SerpAPI supports Google Shopping results **only in specific countries** due to Google's shopping layout limitations. "
+            "Results may not appear for unsupported countries."
+        )
 
-    # Create dataframe and sort by lowest price
-    df = pd.DataFrame(grouped_results).sort_values(by="_sort_price").drop(columns=["_sort_price"])
+        if st.button("\ud83d\udd0d Start Price Comparison"):
+            with st.spinner("Searching prices, please wait..."):
+                results = []
 
-    # Display the results with HTML formatting for the lowest price
-    st.success("✅ Price comparison complete!")
-    st.write("### 🧾 Sorted Results (by Lowest Price)")
-    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                for product in df['product']:
+                    sites_prices = []
+                    lowest_price = float('inf')
+                    lowest_site = ""
 
-    # Clean up the export version of the dataframe
-    export_df = df.copy()
-    export_df["Sites & Prices"] = export_df["Sites & Prices"].str.replace("<br>", " | ", regex=False)
-    export_df["Lowest Price ($)"] = export_df["Lowest Price ($)"].str.replace("<b>", "", regex=False).str.replace("</b>", "", regex=False)
-    csv = export_df.to_csv(index=False)
-    st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison_grouped.csv", mime="text/csv")
+                    if country_code in SUPPORTED_COUNTRIES:
+                        search = GoogleSearch({
+                            "q": product,
+                            "api_key": SERPAPI_KEY,
+                            "engine": "google_shopping",
+                            "gl": country_code,
+                            "hl": "en"
+                        })
+                        response = search.get_dict()
+                        product_results = response.get("shopping_results", [])
+
+                        for item in product_results:
+                            price_str = item.get("price", "").replace("$", "").replace(",", "")
+                            source = item.get("source", "")
+                            seller = item.get("seller", "")
+                            try:
+                                price = float(price_str)
+                            except:
+                                continue
+
+                            site_label = f"{source} - {seller}" if seller else source
+
+                            if price < lowest_price:
+                                lowest_price = price
+                                lowest_site = site_label
+
+                            sites_prices.append((site_label, price))
+                    else:
+                        fallback_results = fallback_bing_search(product)
+                        for site, price in fallback_results:
+                            if price < lowest_price:
+                                lowest_price = price
+                                lowest_site = site
+                            sites_prices.append((site, price))
+
+                    results.append({
+                        "product": product,
+                        "sites_prices": sites_prices,
+                        "lowest_price": lowest_price,
+                        "lowest_site": lowest_site
+                    })
+
+                # Prepare display DataFrame
+                table_data = []
+                for result in results:
+                    sites_prices_str = "\n".join([
+                        f"**{site}: ${price:.2f}**" if price == result['lowest_price'] else f"{site}: ${price:.2f}"
+                        for site, price in result['sites_prices']
+                    ])
+
+                    table_data.append({
+                        "Product": result['product'],
+                        "Sites & Prices": sites_prices_str,
+                        "Lowest Price ($)": f"${result['lowest_price']:.2f} ({result['lowest_site']})"
+                    })
+
+                output_df = pd.DataFrame(table_data)
+                output_df = output_df.sort_values(by="Lowest Price ($)")
+
+                st.markdown("### \ud83d\udcca Comparison Results")
+                st.dataframe(output_df, use_container_width=True)
+
+                # Export options
+                st.markdown("#### \ud83d\udcc2 Export Results")
+                csv = output_df.to_csv(index=False).encode('utf-8')
+                st.download_button("Download CSV", csv, "price_comparison.csv", "text/csv")
+
+                excel_buffer = BytesIO()
+                output_df.to_excel(excel_buffer, index=False, engine='xlsxwriter')
+                st.download_button("Download Excel", excel_buffer.getvalue(), "price_comparison.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+else:
+    st.warning("Please upload a product list CSV to begin.")
