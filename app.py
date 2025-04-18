@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
+from serpapi import GoogleSearch
 import openai
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
