@@ -1,56 +1,22 @@
 import streamlit as st
 import pandas as pd
-from serpapi import GoogleSearch  # Make sure this is available after the update
+from serpapi import GoogleSearch
 import os
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+
 from io import BytesIO
 
 # Load environment variables
-load_dotenv()
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # Supported countries for SerpAPI's Google Shopping layout
 SUPPORTED_COUNTRIES = {
     "US": "United States",
     "UK": "United Kingdom",
-    "ID": "Indonesia"
+    "IN": "India"
 }
 
-# Improved fallback search for unsupported regions using Bing
-def fallback_bing_search(product):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    query = f"{product} price"
-    url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    prices = []
-    seen_sites = set()
-    for li in soup.select("li.b_algo"):
-        title = li.find("h2")
-        snippet = li.find("p")
-        link = li.find("a")
-        if title and snippet and link:
-            text = snippet.text
-            site_name = link.get("href", "").split("/")[2] if "http" in link.get("href", "") else link.get("href", "")
-            if site_name in seen_sites:
-                continue
-            seen_sites.add(site_name)
-            for word in text.split():
-                if "$" in word or "Rs." in word:
-                    price_text = word.replace("Rs.", "").replace("$", "").replace(",", "")
-                    try:
-                        price = float(price_text)
-                        prices.append((site_name, price))
-                        break
-                    except:
-                        continue
-    return prices
-
 # Streamlit UI
-st.title("\ud83d\udcbc Product Price Comparison App")
+st.title("💰 Product Price Comparison App")
 st.markdown("Upload a list of product names to compare prices across multiple sites.")
 
 # Upload CSV file
@@ -63,22 +29,17 @@ if uploaded_file:
     else:
         # Select country
         country_code = st.selectbox(
-            "\ud83c\udf0d Select Country for Search",
+            "🌍 Select Country for Search",
             options=list(SUPPORTED_COUNTRIES.keys()),
             format_func=lambda x: SUPPORTED_COUNTRIES[x]
         )
 
-        if country_code not in SUPPORTED_COUNTRIES:
-            st.warning(
-                f"\u26a0\ufe0f The selected country ({SUPPORTED_COUNTRIES[country_code]}) may not return results due to limitations in Google Shopping's supported layout via SerpAPI."
-            )
-
         st.info(
-            "\u2139\ufe0f Currently, SerpAPI supports Google Shopping results **only in specific countries** due to Google's shopping layout limitations. "
+            "ℹ️ Currently, SerpAPI supports Google Shopping results **only in specific countries**. "
             "Results may not appear for unsupported countries."
         )
 
-        if st.button("\ud83d\udd0d Start Price Comparison"):
+        if st.button("🔍 Start Price Comparison"):
             with st.spinner("Searching prices, please wait..."):
                 results = []
 
@@ -91,7 +52,7 @@ if uploaded_file:
                         search = GoogleSearch({
                             "q": product,
                             "api_key": SERPAPI_KEY,
-                            "engine": "google",
+                            "engine": "google_shopping",
                             "gl": country_code,
                             "hl": "en"
                         })
@@ -114,13 +75,6 @@ if uploaded_file:
                                 lowest_site = site_label
 
                             sites_prices.append((site_label, price))
-                    else:
-                        fallback_results = fallback_bing_search(product)
-                        for site, price in fallback_results:
-                            if price < lowest_price:
-                                lowest_price = price
-                                lowest_site = site
-                            sites_prices.append((site, price))
 
                     results.append({
                         "product": product,
@@ -146,11 +100,11 @@ if uploaded_file:
                 output_df = pd.DataFrame(table_data)
                 output_df = output_df.sort_values(by="Lowest Price ($)")
 
-                st.markdown("### \ud83d\udcca Comparison Results")
+                st.markdown("### 📊 Comparison Results")
                 st.dataframe(output_df, use_container_width=True)
 
                 # Export options
-                st.markdown("#### \ud83d\udcc2 Export Results")
+                st.markdown("#### 📥 Export Results")
                 csv = output_df.to_csv(index=False).encode('utf-8')
                 st.download_button("Download CSV", csv, "price_comparison.csv", "text/csv")
 
