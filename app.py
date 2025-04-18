@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
 import os
@@ -12,7 +12,7 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a361
 st.set_page_config(page_title="🛍️ Price Comparison App", layout="wide")
 st.title("🛍️ Product Price Comparison")
 st.write(
-    "Upload a product list (CSV or TXT), choose regions, and compare prices from online shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳."
+    "Upload a product list (CSV or TXT), and compare prices from online shopping sites in US 🇺🇸 and India 🇮🇳."
 )
 
 # File uploader
@@ -38,8 +38,8 @@ def get_base_site_name(site):
 
 # SerpAPI call with fallback for India
 def get_prices(product_name, country_code):
-    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
-    location_map = {"US": "United States", "UK": "United Kingdom", "IN": "India"}
+    gl_map = {"US": "us", "IN": "in"}
+    location_map = {"US": "United States", "IN": "India"}
 
     gl_value = gl_map.get(country_code.upper(), "us")
     location_value = location_map.get(country_code.upper(), "United States")
@@ -86,7 +86,7 @@ def get_prices(product_name, country_code):
                     price = float(price_cleaned)
                     # Add currency symbol to the price
                     price_with_currency = f"{currency_symbol}{price}"
-                    items.append((site, price_with_currency))
+                    items.append((base_site_name, price_with_currency))
                     seen_sites.add(base_site_name)
                 except ValueError:
                     continue
@@ -97,15 +97,12 @@ def get_prices(product_name, country_code):
 if uploaded_file:
     products = parse_file(uploaded_file)
 
-    selected_regions = st.multiselect(
-        "🌍 Select one or more regions:", ["US", "UK", "IN"]
-    )
+    # Set regions to US and India by default
+    selected_regions = ["US", "IN"]
 
-    if not selected_regions:
-        st.warning("⚠️ Please select at least one region to proceed.")
-    elif products:
+    if products:
         results = []
-        seen_entries = set()  # To avoid duplicates across products/regions/sites
+        seen_entries = set()  # To avoid duplicates across products/sites
         product_prices = {}  # Store lowest price for each product
         product_sites = {}  # Store sites for each product
 
@@ -118,32 +115,26 @@ if uploaded_file:
                         lowest_price = min(p[1] for p in price_data)
                         lowest_price_site = [site for site, price in price_data if price == lowest_price][0]
 
-                        # Store product data
-                        for site, price_with_currency in price_data:
-                            key = (product.lower(), region, site.lower())
-                            if key not in seen_entries:
-                                results.append({
-                                    "Product": product,
-                                    "Region": region,
-                                    "Site": site,
-                                    "Price": price_with_currency,
-                                    "Lowest Price": lowest_price if price_with_currency == lowest_price else None,
-                                    "Lowest Price Site": lowest_price_site if price_with_currency == lowest_price else None
-                                })
-                                seen_entries.add(key)
+                        # Add each site and its price as a separate row
+                        for site, price in price_data:
+                            results.append({
+                                "Product": product if site == price_data[0][0] else "",  # Show product name only on first site
+                                "Region": region,
+                                "Site & Price": f"{site}({price})",
+                                "Lowest Price & Site": f"{lowest_price_site}({lowest_price})" if site == lowest_price_site else ""
+                            })
                     else:
                         results.append({
                             "Product": product,
                             "Region": region,
-                            "Site": "No results found",
-                            "Price": None,
-                            "Lowest Price": None,
-                            "Lowest Price Site": None
+                            "Site & Price": "No results found",
+                            "Lowest Price & Site": None
                         })
 
         # Final Results DataFrame
         if results:
             df = pd.DataFrame(results)
+
             st.success("✅ Price comparison complete!")
 
             # Neatly formatted table in the Streamlit UI
