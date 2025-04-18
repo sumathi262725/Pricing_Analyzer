@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
-from serpapi import GoogleSearch
 from google_search_results import GoogleSearch
 import os
 
-# Load your API key securely (via env or hardcoded)
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+# Load your API key securely
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
 
+# Streamlit UI
 st.title("🛍️ Product Price Comparison")
-st.write("Upload a list of product names (CSV or TXT), and we'll find prices from shopping sites.")
+st.write("Upload a list of product names (CSV or TXT), and we'll find prices from shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳.")
 
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
@@ -23,27 +23,35 @@ def parse_file(file):
 
 # Search product prices using SerpAPI
 def get_prices(product_name, country_code):
+    gl_map = {
+        "US": "us",
+        "UK": "uk",
+        "IN": "in"
+    }
+    gl_value = gl_map.get(country_code.upper(), "us")
+
     params = {
         "engine": "google_shopping",
         "q": product_name,
         "api_key": SERPAPI_KEY,
         "hl": "en",
-        "gl": country_code  # Country-specific code like "us", "uk", "in"
+        "gl": gl_value
     }
-    
-    # Using GoogleSearch class from serpapi
+
     search = GoogleSearch(params)
     results = search.get_dict()
-    
+
     items = []
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
         if site and price_str:
+            price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
+
             try:
-                price = float(price_str.replace("$", "").replace(",", "").strip())
+                price = float(price_cleaned)
                 items.append((site, price))
-            except ValueError:
+            except:
                 continue
     return items
 
@@ -52,46 +60,33 @@ if uploaded_file:
     products = parse_file(uploaded_file)
     results = []
 
-    # Country code selection for different regions
-    country_code = st.selectbox(
-        "🌍 Select Country for Search",
-        options=["us", "uk", "in"],  # US, UK, India
-        index=0,  # Default to 'us'
-        format_func=lambda x: {"us": "United States", "uk": "United Kingdom", "in": "India"}[x]
-    )
-
     with st.spinner("🔎 Searching for prices..."):
         for product in products:
-            price_data = get_prices(product, country_code)
-            if price_data:
-                lowest_price = min(p[1] for p in price_data)
-                for site, price in price_data:
+            for region in ["US", "UK", "IN"]:
+                price_data = get_prices(product, region)
+                if price_data:
+                    lowest_price = min(p[1] for p in price_data)
+                    for site, price in price_data:
+                        results.append({
+                            "Product": product,
+                            "Region": region,
+                            "Site": site,
+                            "Price": price,
+                            "Lowest Price in Region": lowest_price
+                        })
+                else:
                     results.append({
                         "Product": product,
-                        "Site": site,
-                        "Price ($)": price,
-                        "Lowest Price ($)": lowest_price
+                        "Region": region,
+                        "Site": "No results found",
+                        "Price": None,
+                        "Lowest Price in Region": None
                     })
-            else:
-                results.append({
-                    "Product": product,
-                    "Site": "No results found",
-                    "Price ($)": None,
-                    "Lowest Price ($)": None
-                })
 
-    # Display results in a DataFrame
     df = pd.DataFrame(results)
     st.success("✅ Price comparison complete!")
     st.dataframe(df)
 
-    # Export options
+    # Download CSV
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
-
-    excel_buffer = BytesIO()
-    df.to_excel(excel_buffer, index=False, engine='xlsxwriter')
-    st.download_button("📥 Download Results as Excel", data=excel_buffer.getvalue(), file_name="price_comparison.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-else:
-    st.warning("Please upload a product list CSV or TXT to begin.")
