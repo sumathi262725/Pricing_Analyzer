@@ -34,16 +34,21 @@ if product_input:
             search = GoogleSearch(params)
             results = search.get_dict()
 
+            # Log the full response to debug
+            st.write("SerpAPI Response:", results)
+
             # Initialize a dictionary to store prices from different websites
             prices = {}
             sites_used = []
 
-            for result in results.get('organic_results', []):
-                if 'price' in result and 'source' in result:
-                    price = result['price']
-                    site = result['source']
-                    prices[site] = price
-                    sites_used.append(site)
+            # Check if 'organic_results' is in the response
+            if 'organic_results' in results:
+                for result in results['organic_results']:
+                    if 'price' in result and 'source' in result:
+                        price = result['price']
+                        site = result['source']
+                        prices[site] = price
+                        sites_used.append(site)
 
             if prices:
                 # Get the lowest price
