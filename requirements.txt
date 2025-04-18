@@ -2,7 +2,7 @@ streamlit
 pandas
 openai
 langchain-community
-langchain_community.tools.serpapi
+serpapi
 google-search-results
 matplotlib
 numpy
