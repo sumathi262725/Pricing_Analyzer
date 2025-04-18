@@ -3,9 +3,6 @@ import pandas as pd
 import requests
 from datetime import datetime
 from serpapi import GoogleSearch
-import openai
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationChain
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import os
@@ -13,17 +10,6 @@ import os
 # CONFIG
 st.set_page_config(page_title="AI Price Tracker", layout="wide")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# LangChain Chat setup
-
-chat_model = ChatOpenAI(
-    model="gpt-3.5-turbo",
-    temperature=0.7,
-    openai_api_key=os.getenv("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")  # fallback to env variable manually
-)
-
-
 
 # Fetch product prices via SerpAPI
 def get_prices(product_name):
@@ -91,10 +77,6 @@ def plot_price_trends():
     except Exception as e:
         st.error(f"Error plotting trends: {e}")
 
-# Chat with OpenAI
-def get_chatbot_response(query):
-    return conversation.predict(input=query)
-
 # Export functionality
 def export_data(export_option):
     df = pd.read_csv("price_history.csv")
@@ -143,8 +125,8 @@ def main():
         st.dataframe(results_df)
 
     # Text input product price search
-    st.subheader("🔍 Ask for a product's price:")
-    user_input = st.text_input("Enter a product name or ask a question")
+    st.subheader("🔍 Check a product's price:")
+    user_input = st.text_input("Enter a product name")
 
     if user_input:
         prices, sites = get_prices(user_input)
@@ -159,8 +141,6 @@ def main():
             st.dataframe(pd.DataFrame([row]))
         else:
             st.warning("No prices found.")
-        st.markdown("🤖 **Chatbot Response:**")
-        st.write(get_chatbot_response(user_input))
 
     # Trend
     st.subheader("📈 Price Trends")
