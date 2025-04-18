@@ -5,13 +5,13 @@ import os
 from io import BytesIO
 
 # Load your API key securely
-SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bcyour_serpapi_key_here"
+SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # --- UI ---
 st.set_page_config(page_title="🛍️ Price Comparison App", layout="wide")
 st.title("🛍️ Product Price Comparison")
 st.write(
-    "Upload a product list (CSV or TXT), choose regions, and compare prices from online shopping sites in US 🇺🇸, and India 🇮🇳."
+    "Upload a product list (CSV or TXT), choose regions, and compare prices from online shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳."
 )
 
 # File uploader
@@ -29,8 +29,8 @@ def parse_file(file):
 
 # SerpAPI call with fallback for India
 def get_prices(product_name, country_code):
-    gl_map = {"US": "us",  "IN": "in"}
-    location_map = {"US": "United States", "IN": "India"}
+    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
+    location_map = {"US": "United States", "UK": "United Kingdom", "IN": "India"}
 
     gl_value = gl_map.get(country_code.upper(), "us")
     location_value = location_map.get(country_code.upper(), "United States")
@@ -46,6 +46,10 @@ def get_prices(product_name, country_code):
 
     search = GoogleSearch(params)
     results = search.get_dict()
+
+    # Debugging the API response
+    st.write(f"🔍 API Response for {product_name} in {country_code}: {results}")
+    
     shopping_results = results.get("shopping_results", [])
 
     # Fallback for India
@@ -55,6 +59,10 @@ def get_prices(product_name, country_code):
         params["location"] = "United States"
         results = GoogleSearch(params).get_dict()
         shopping_results = results.get("shopping_results", [])
+
+    # Ensure there are valid shopping results
+    if not shopping_results:
+        st.warning(f"No shopping results found for {product_name} in {country_code}")
 
     seen_sites = set()
     items = []
@@ -79,7 +87,7 @@ if uploaded_file:
     products = parse_file(uploaded_file)
 
     selected_regions = st.multiselect(
-        "🌍 Select one or more regions:", ["US", "IN"]
+        "🌍 Select one or more regions:", ["US", "UK", "IN"]
     )
 
     if not selected_regions:
