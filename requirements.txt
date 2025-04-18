@@ -1,4 +1,10 @@
 streamlit
 pandas
-google-search-results
+python-dotenv
+serpapi
+requests
+beautifulsoup4
+openpyxl
+xlsxwriter
+
 
