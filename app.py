@@ -4,7 +4,7 @@ from serpapi import GoogleSearch
 import os
 
 # Load SerpAPI key from environment or use hardcoded fallback
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # App title
 st.set_page_config(page_title="Product Price Comparison", layout="centered")
