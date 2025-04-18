@@ -38,8 +38,8 @@ def get_base_site_name(site):
 
 # SerpAPI call with fallback for India
 def get_prices(product_name, country_code):
-    gl_map = {"US": "us",  "IN": "in"}
-    location_map = {"US": "United States",  "IN": "India"}
+    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
+    location_map = {"US": "United States", "UK": "United Kingdom", "IN": "India"}
 
     gl_value = gl_map.get(country_code.upper(), "us")
     location_value = location_map.get(country_code.upper(), "United States")
@@ -75,14 +75,18 @@ def get_prices(product_name, country_code):
     for item in shopping_results:
         site = item.get("source")
         price_str = item.get("price")
+        currency_symbol = item.get("currency")
 
-        if site and price_str:
+        if site and price_str and currency_symbol:
             base_site_name = get_base_site_name(site)  # Get base site name (e.g., "eBay")
             if base_site_name not in seen_sites:
+                # Clean and convert price
                 price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
                 try:
                     price = float(price_cleaned)
-                    items.append((site, price))
+                    # Add currency symbol to the price
+                    price_with_currency = f"{currency_symbol}{price}"
+                    items.append((site, price_with_currency))
                     seen_sites.add(base_site_name)
                 except ValueError:
                     continue
@@ -115,16 +119,16 @@ if uploaded_file:
                         lowest_price_site = [site for site, price in price_data if price == lowest_price][0]
 
                         # Store product data
-                        for site, price in price_data:
+                        for site, price_with_currency in price_data:
                             key = (product.lower(), region, site.lower())
                             if key not in seen_entries:
                                 results.append({
                                     "Product": product,
                                     "Region": region,
                                     "Site": site,
-                                    "Price": price,
-                                    "Lowest Price": lowest_price if site == lowest_price_site else None,
-                                    "Lowest Price Site": lowest_price_site if site == lowest_price_site else None
+                                    "Price": price_with_currency,
+                                    "Lowest Price": lowest_price if price_with_currency == lowest_price else None,
+                                    "Lowest Price Site": lowest_price_site if price_with_currency == lowest_price else None
                                 })
                                 seen_entries.add(key)
                     else:
