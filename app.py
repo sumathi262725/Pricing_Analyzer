@@ -3,6 +3,7 @@ import pandas as pd
 from serpapi import GoogleSearch
 import os
 from io import BytesIO
+import re
 
 # Load your API key securely
 SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
@@ -27,10 +28,18 @@ def parse_file(file):
         return [line.strip() for line in content if line.strip()]
     return []
 
+# Function to extract base site name (e.g., "eBay" from "eBay - houstoncellphones")
+def get_base_site_name(site):
+    # Use regex to extract the base site name (before the '-')
+    match = re.match(r"([a-zA-Z0-9]+)", site)
+    if match:
+        return match.group(1)
+    return site
+
 # SerpAPI call with fallback for India
 def get_prices(product_name, country_code):
-    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
-    location_map = {"US": "United States", "UK": "United Kingdom", "IN": "India"}
+    gl_map = {"US": "us",  "IN": "in"}
+    location_map = {"US": "United States",  "IN": "India"}
 
     gl_value = gl_map.get(country_code.upper(), "us")
     location_value = location_map.get(country_code.upper(), "United States")
@@ -67,14 +76,16 @@ def get_prices(product_name, country_code):
         site = item.get("source")
         price_str = item.get("price")
 
-        if site and price_str and site not in seen_sites:
-            price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
-            try:
-                price = float(price_cleaned)
-                items.append((site, price))
-                seen_sites.add(site)
-            except ValueError:
-                continue
+        if site and price_str:
+            base_site_name = get_base_site_name(site)  # Get base site name (e.g., "eBay")
+            if base_site_name not in seen_sites:
+                price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
+                try:
+                    price = float(price_cleaned)
+                    items.append((site, price))
+                    seen_sites.add(base_site_name)
+                except ValueError:
+                    continue
 
     return items
 
