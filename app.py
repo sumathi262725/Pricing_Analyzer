@@ -21,14 +21,16 @@ def parse_file(file):
     return []
 
 # Search product prices using SerpAPI
-def get_prices(product_name):
+def get_prices(product_name, country_code):
     params = {
         "engine": "google_shopping",
         "q": product_name,
         "api_key": SERPAPI_KEY,
         "hl": "en",
-        "gl": "us"
+        "gl": country_code  # Country-specific code like "us", "uk", "in"
     }
+    
+    # Using GoogleSearch class from serpapi
     search = GoogleSearch(params)
     results = search.get_dict()
     
@@ -40,7 +42,7 @@ def get_prices(product_name):
             try:
                 price = float(price_str.replace("$", "").replace(",", "").strip())
                 items.append((site, price))
-            except:
+            except ValueError:
                 continue
     return items
 
@@ -49,9 +51,17 @@ if uploaded_file:
     products = parse_file(uploaded_file)
     results = []
 
+    # Country code selection for different regions
+    country_code = st.selectbox(
+        "🌍 Select Country for Search",
+        options=["us", "uk", "in"],  # US, UK, India
+        index=0,  # Default to 'us'
+        format_func=lambda x: {"us": "United States", "uk": "United Kingdom", "in": "India"}[x]
+    )
+
     with st.spinner("🔎 Searching for prices..."):
         for product in products:
-            price_data = get_prices(product)
+            price_data = get_prices(product, country_code)
             if price_data:
                 lowest_price = min(p[1] for p in price_data)
                 for site, price in price_data:
@@ -69,10 +79,18 @@ if uploaded_file:
                     "Lowest Price ($)": None
                 })
 
+    # Display results in a DataFrame
     df = pd.DataFrame(results)
     st.success("✅ Price comparison complete!")
     st.dataframe(df)
 
-    # Export option
+    # Export options
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
+
+    excel_buffer = BytesIO()
+    df.to_excel(excel_buffer, index=False, engine='xlsxwriter')
+    st.download_button("📥 Download Results as Excel", data=excel_buffer.getvalue(), file_name="price_comparison.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+else:
+    st.warning("Please upload a product list CSV or TXT to begin.")
