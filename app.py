@@ -45,7 +45,9 @@ def get_prices(product_name):
                 items.append((site, price))
             except:
                 continue
-    return items
+    # Remove duplicates (same site for the same product)
+    unique_items = {site: price for site, price in items}
+    return list(unique_items.items())
 
 # Main app logic
 if uploaded_file:
