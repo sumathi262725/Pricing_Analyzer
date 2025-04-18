@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
 import os
+import concurrent.futures
 
 # Load SerpAPI key from environment or use hardcoded fallback
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
@@ -63,6 +64,43 @@ def get_prices(product_name, country_code):
 
     return final_items
 
+# Function to handle fetching prices in parallel for multiple products
+def fetch_prices_parallel(products, country_code):
+    grouped_results = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Parallel fetching of prices
+        futures = {executor.submit(get_prices, product, country_code): product for product in products}
+        for future in concurrent.futures.as_completed(futures):
+            product = futures[future]
+            try:
+                price_data = future.result()
+                if price_data:
+                    sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
+                    lowest_entry = min(price_data, key=lambda x: x[1])
+                    lowest_site, lowest_price = lowest_entry
+                    grouped_results.append({
+                        "Product": product,
+                        "Sites & Prices": "<br>".join(sites_prices),
+                        "Lowest Price ($)": f"<b>${lowest_price:.2f}</b> ({lowest_site})",
+                        "_sort_price": lowest_price  # for sorting
+                    })
+                else:
+                    grouped_results.append({
+                        "Product": product,
+                        "Sites & Prices": "No results found",
+                        "Lowest Price ($)": "N/A",
+                        "_sort_price": float("inf")  # sort missing values last
+                    })
+            except Exception as e:
+                grouped_results.append({
+                    "Product": product,
+                    "Sites & Prices": "Error fetching data",
+                    "Lowest Price ($)": "N/A",
+                    "_sort_price": float("inf")
+                })
+    
+    return grouped_results
+
 # Main app logic
 if uploaded_file:
     # Step 1: Parse the product list
@@ -71,29 +109,11 @@ if uploaded_file:
     # Step 2: Display country selection after the file upload
     country_code = st.selectbox("Select Country for Search", ["US", "UK", "DE", "IN", "CA"], index=0)
 
-    # Step 3: Run the search for prices
+    # Step 3: Run the search for prices in parallel
     grouped_results = []
 
     with st.spinner("🔍 Searching for prices..."):
-        for product in products:
-            price_data = get_prices(product, country_code)
-            if price_data:
-                sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
-                lowest_entry = min(price_data, key=lambda x: x[1])
-                lowest_site, lowest_price = lowest_entry
-                grouped_results.append({
-                    "Product": product,
-                    "Sites & Prices": "<br>".join(sites_prices),
-                    "Lowest Price ($)": f"<b>${lowest_price:.2f}</b> ({lowest_site})",
-                    "_sort_price": lowest_price  # for sorting
-                })
-            else:
-                grouped_results.append({
-                    "Product": product,
-                    "Sites & Prices": "No results found",
-                    "Lowest Price ($)": "N/A",
-                    "_sort_price": float("inf")  # sort missing values last
-                })
+        grouped_results = fetch_prices_parallel(products, country_code)
 
     # Create dataframe and sort by lowest price
     df = pd.DataFrame(grouped_results).sort_values(by="_sort_price").drop(columns=["_sort_price"])
