@@ -7,6 +7,7 @@ import openai
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import ConversationChain
+from langchain_community.tools.serpapi.tool import SerpAPIWrapper
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 
