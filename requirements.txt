@@ -1,13 +1,8 @@
 streamlit
 pandas
-selenium==4.9.0
-langchain-community
-google-search-results
+requests
 matplotlib
-numpy
-scikit-learn
-tqdm
 fpdf
-python-dotenv
-webdriver_manager==4.9.0
+selenium
+webdriver_manager
 
