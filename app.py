@@ -15,7 +15,8 @@ from fpdf import FPDF
 st.set_page_config(page_title="Price Tracker", layout="wide")
 
 # API Key (ensure you've set your API key in Streamlit secrets or the appropriate environment variable)
-search = SerpAPIWrapper(serpapi_api_key="97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc")  # Your API key for SerpAPI
+#search = SerpAPIWrapper(serpapi_api_key="97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc") 
+serpapi = SerpAPIWrapper(serpapi_api_key=st.secrets["97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"])# Your API key for SerpAPI
 
 # OpenAI API Key (make sure this is set in your secrets or environment)
 openai.api_key = st.secrets["openai_api_key"]
