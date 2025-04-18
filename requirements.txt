@@ -1,8 +1,5 @@
 streamlit
 pandas
-numpy        # <-- Add this line
 requests
 beautifulsoup4
-serpapi        # Also fixed earlier
-
-
+serpapi
