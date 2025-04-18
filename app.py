@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from serpapi import Search  # Updated import
+from serpapi import GoogleSearch  # Make sure this is available after the update
 import os
 import requests
 from bs4 import BeautifulSoup
@@ -88,7 +88,7 @@ if uploaded_file:
                     lowest_site = ""
 
                     if country_code in SUPPORTED_COUNTRIES:
-                        search = Search({
+                        search = GoogleSearch({
                             "q": product,
                             "api_key": SERPAPI_KEY,
                             "engine": "google",
