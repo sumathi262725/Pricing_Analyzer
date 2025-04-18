@@ -3,15 +3,18 @@ import pandas as pd
 from serpapi import GoogleSearch
 import os
 
-# Load your API key securely (via env or hardcoded)
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+# Load SerpAPI key from environment or use hardcoded fallback
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
 
+# App title
+st.set_page_config(page_title="Product Price Comparison", layout="centered")
 st.title("🛍️ Product Price Comparison")
-st.write("Upload a list of product names (CSV or TXT), and we'll find prices from shopping sites.")
+st.write("Upload a list of product names (CSV or TXT), and we’ll find the best prices across sites.")
 
+# File uploader
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
-# Parse uploaded file
+# Parse file contents
 def parse_file(file):
     if file.name.endswith(".csv"):
         df = pd.read_csv(file)
@@ -20,7 +23,7 @@ def parse_file(file):
         return [line.strip() for line in file.readlines()]
     return []
 
-# Search product prices using SerpAPI
+# Query SerpAPI for shopping prices
 def get_prices(product_name):
     params = {
         "engine": "google_shopping",
@@ -44,35 +47,38 @@ def get_prices(product_name):
                 continue
     return items
 
-# Main logic
+# Main app logic
 if uploaded_file:
     products = parse_file(uploaded_file)
-    results = []
+    grouped_results = []
 
-    with st.spinner("🔎 Searching for prices..."):
+    with st.spinner("🔍 Searching for prices..."):
         for product in products:
             price_data = get_prices(product)
             if price_data:
-                lowest_price = min(p[1] for p in price_data)
-                for site, price in price_data:
-                    results.append({
-                        "Product": product,
-                        "Site": site,
-                        "Price ($)": price,
-                        "Lowest Price ($)": lowest_price
-                    })
-            else:
-                results.append({
+                sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
+                lowest_price = min(price for _, price in price_data)
+                grouped_results.append({
                     "Product": product,
-                    "Site": "No results found",
-                    "Price ($)": None,
+                    "Sites & Prices": "<br>".join(sites_prices),
+                    "Lowest Price ($)": lowest_price
+                })
+            else:
+                grouped_results.append({
+                    "Product": product,
+                    "Sites & Prices": "No results found",
                     "Lowest Price ($)": None
                 })
 
-    df = pd.DataFrame(results)
-    st.success("✅ Price comparison complete!")
-    st.dataframe(df)
+    df = pd.DataFrame(grouped_results)
 
-    # Export option
-    csv = df.to_csv(index=False)
-    st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
+    # Display with HTML formatting
+    st.success("✅ Price comparison complete!")
+    st.write("### 🧾 Results")
+    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # Clean export format for CSV
+    export_df = df.copy()
+    export_df["Sites & Prices"] = export_df["Sites & Prices"].str.replace("<br>", " | ", regex=False)
+    csv = export_df.to_csv(index=False)
+    st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison_grouped.csv", mime="text/csv")
