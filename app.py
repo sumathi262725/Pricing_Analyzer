@@ -5,13 +5,13 @@ import os
 from io import BytesIO
 
 # Load your API key securely
-SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+SERPAPI_KEY = os.getenv("SERPAPI_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bcyour_serpapi_key_here"
 
 # --- UI ---
 st.set_page_config(page_title="🛍️ Price Comparison App", layout="wide")
 st.title("🛍️ Product Price Comparison")
 st.write(
-    "Upload a product list (CSV or TXT), choose regions, and compare prices from online shopping sites in US 🇺🇸, UK 🇬🇧, and India 🇮🇳."
+    "Upload a product list (CSV or TXT), choose regions, and compare prices from online shopping sites in US 🇺🇸, and India 🇮🇳."
 )
 
 # File uploader
@@ -29,8 +29,8 @@ def parse_file(file):
 
 # SerpAPI call with fallback for India
 def get_prices(product_name, country_code):
-    gl_map = {"US": "us", "UK": "uk", "IN": "in"}
-    location_map = {"US": "United States", "UK": "United Kingdom", "IN": "India"}
+    gl_map = {"US": "us",  "IN": "in"}
+    location_map = {"US": "United States", "IN": "India"}
 
     gl_value = gl_map.get(country_code.upper(), "us")
     location_value = location_map.get(country_code.upper(), "United States")
@@ -79,7 +79,7 @@ if uploaded_file:
     products = parse_file(uploaded_file)
 
     selected_regions = st.multiselect(
-        "🌍 Select one or more regions:", ["US", "UK", "IN"]
+        "🌍 Select one or more regions:", ["US", "IN"]
     )
 
     if not selected_regions:
@@ -95,13 +95,11 @@ if uploaded_file:
                 for region in selected_regions:
                     price_data = get_prices(product, region)
                     if price_data:
+                        # Find the lowest price for this product
                         lowest_price = min(p[1] for p in price_data)
-                        if product not in product_prices or lowest_price < product_prices[product]:
-                            product_prices[product] = lowest_price
+                        lowest_price_site = [site for site, price in price_data if price == lowest_price][0]
 
-                        if product not in product_sites:
-                            product_sites[product] = []
-
+                        # Store product data
                         for site, price in price_data:
                             key = (product.lower(), region, site.lower())
                             if key not in seen_entries:
@@ -110,34 +108,30 @@ if uploaded_file:
                                     "Region": region,
                                     "Site": site,
                                     "Price": price,
-                                    "Lowest Price in Region": lowest_price
+                                    "Lowest Price": lowest_price if site == lowest_price_site else None,
+                                    "Lowest Price Site": lowest_price_site if site == lowest_price_site else None
                                 })
                                 seen_entries.add(key)
-                                product_sites[product].append({"Site": site, "Price": price})
-
                     else:
                         results.append({
                             "Product": product,
                             "Region": region,
                             "Site": "No results found",
                             "Price": None,
-                            "Lowest Price in Region": None
+                            "Lowest Price": None,
+                            "Lowest Price Site": None
                         })
 
-        # Aggregated results: Single product name, lowest price, and sites
-        final_results = []
-        for product, lowest_price in product_prices.items():
-            sites_info = ", ".join([f"{entry['Site']} ({entry['Price']})" for entry in product_sites[product]])
-            final_results.append({
-                "Product": product,
-                "Lowest Price": lowest_price,
-                "Sites": sites_info
-            })
-
-        if final_results:
-            df = pd.DataFrame(final_results)
+        # Final Results DataFrame
+        if results:
+            df = pd.DataFrame(results)
             st.success("✅ Price comparison complete!")
-            st.dataframe(df)
+
+            # Neatly formatted table in the Streamlit UI
+            st.dataframe(df.style.set_table_styles(
+                [{'selector': 'thead th', 'props': [('background-color', '#4CAF50'), ('color', 'white')]},
+                 {'selector': 'tbody td', 'props': [('font-size', '12px')]}]
+            ))
 
             # CSV Download
             csv = df.to_csv(index=False)
