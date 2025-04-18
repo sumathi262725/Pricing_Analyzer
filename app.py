@@ -1,39 +1,68 @@
 import streamlit as st
 import pandas as pd
-import requests
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 from datetime import datetime
-from serpapi import GoogleSearch
-import matplotlib.pyplot as plt
 from fpdf import FPDF
 import os
 
 # CONFIG
 st.set_page_config(page_title="AI Price Tracker", layout="wide")
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# Fetch product prices via SerpAPI
+# Initialize Selenium WebDriver with Headless Chrome
+def init_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Ensure headless mode for background scraping
+    chrome_options.add_argument("--no-sandbox")
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+    return driver
+
+# Fetch product prices via scraping
 def get_prices(product_name):
-    params = {
-        "engine": "google_shopping",
-        "q": product_name,
-        "api_key": SERPAPI_KEY
-    }
-
-    response = requests.get("https://serpapi.com/search", params=params)
-    results = response.json()
-
     prices, sites = [], []
-    if "shopping_results" in results:
-        for item in results["shopping_results"]:
-            price_str = item.get("price")
-            source = item.get("source")
-            if price_str and source:
-                try:
-                    price_val = float(price_str.replace("$", "").replace(",", ""))
-                    prices.append(price_val)
-                    sites.append(source)
-                except:
-                    continue
+
+    # Initialize the WebDriver
+    driver = init_driver()
+
+    try:
+        # Amazon Search
+        amazon_url = f"https://www.amazon.com/s?k={product_name.replace(' ', '+')}"
+        driver.get(amazon_url)
+        time.sleep(3)  # Let the page load
+        try:
+            amazon_price = driver.find_element(By.CSS_SELECTOR, '.a-price .a-offscreen').text
+            prices.append(float(amazon_price.replace("$", "").replace(",", "")))
+            sites.append("Amazon")
+        except:
+            pass
+
+        # Walmart Search
+        walmart_url = f"https://www.walmart.com/search/?query={product_name.replace(' ', '%20')}"
+        driver.get(walmart_url)
+        time.sleep(3)  # Let the page load
+        try:
+            walmart_price = driver.find_element(By.CSS_SELECTOR, '.price-main .visuallyhidden').text
+            prices.append(float(walmart_price.replace("$", "").replace(",", "")))
+            sites.append("Walmart")
+        except:
+            pass
+
+        # Target Search
+        target_url = f"https://www.target.com/s?searchTerm={product_name.replace(' ', '%20')}"
+        driver.get(target_url)
+        time.sleep(3)  # Let the page load
+        try:
+            target_price = driver.find_element(By.CSS_SELECTOR, '.h-padding-r-tight span').text
+            prices.append(float(target_price.replace("$", "").replace(",", "")))
+            sites.append("Target")
+        except:
+            pass
+    finally:
+        driver.quit()
+
     return prices, sites
 
 # Save prices to history
