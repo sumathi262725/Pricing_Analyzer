@@ -1,6 +1,8 @@
 streamlit==1.10.0
 pandas==1.4.2
+numpy==1.22.3         # <-- Add this line
 requests==2.27.1
 beautifulsoup4==4.11.1
-serpapi==0.1.5  # Updated version
+serpapi==0.1.5         # Also fixed earlier
+
 
