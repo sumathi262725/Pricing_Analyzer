@@ -1,7 +1,7 @@
 streamlit
 pandas
 openai
-langchain
+langchain-community
 google-search-results
 matplotlib
 numpy
