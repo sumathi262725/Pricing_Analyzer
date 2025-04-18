@@ -65,9 +65,8 @@ def get_prices(product_name, country_code):
         results = GoogleSearch(params).get_dict()
         shopping_results = results.get("shopping_results", [])
 
-    # Ensure there are valid shopping results
     if not shopping_results:
-        return []
+        st.warning(f"No shopping results found for {product_name} in {country_code}")
 
     seen_sites = set()
     items = []
@@ -103,8 +102,6 @@ if uploaded_file:
     if products:
         results = []
         seen_entries = set()  # To avoid duplicates across products/sites
-        product_prices = {}  # Store lowest price for each product
-        product_sites = {}  # Store sites for each product
 
         with st.spinner("🔍 Searching for product prices..."):
             for product in products:
