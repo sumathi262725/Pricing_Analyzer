@@ -1,17 +1,18 @@
 import streamlit as st
 import pandas as pd
-from google_search_results import GoogleSearchResults as GoogleSearch
+from serpapi import GoogleSearch
 import os
 
-# Set your SerpAPI key securely (you can also set this in Streamlit Secrets)
+# Load your API key securely (via env or hardcoded)
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
-# Upload section
-st.title("🛍️ Product Price Comparison Tool")
-uploaded_file = st.file_uploader("Upload a file with product names (CSV or TXT)", type=["csv", "txt"])
+st.title("🛍️ Product Price Comparison")
+st.write("Upload a list of product names (CSV or TXT), and we'll find prices from shopping sites.")
 
-# Helper to parse uploaded file
-def parse_uploaded_file(file):
+uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
+
+# Parse uploaded file
+def parse_file(file):
     if file.name.endswith(".csv"):
         df = pd.read_csv(file)
         return df.iloc[:, 0].dropna().tolist()
@@ -19,60 +20,59 @@ def parse_uploaded_file(file):
         return [line.strip() for line in file.readlines()]
     return []
 
-# Helper to extract prices from search results
-def extract_prices(product_name):
-    search = GoogleSearch({
+# Search product prices using SerpAPI
+def get_prices(product_name):
+    params = {
+        "engine": "google_shopping",
         "q": product_name,
         "api_key": SERPAPI_KEY,
-        "engine": "google_shopping",
         "hl": "en",
         "gl": "us"
-    })
-
+    }
+    search = GoogleSearch(params)
     results = search.get_dict()
-    product_data = []
-
+    
+    items = []
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
-        if price_str and site:
+        if site and price_str:
             try:
                 price = float(price_str.replace("$", "").replace(",", "").strip())
-                product_data.append((site, price))
+                items.append((site, price))
             except:
                 continue
+    return items
 
-    return product_data
-
-# Display results
+# Main logic
 if uploaded_file:
-    product_list = parse_uploaded_file(uploaded_file)
-    final_data = []
+    products = parse_file(uploaded_file)
+    results = []
 
-    with st.spinner("🔍 Searching for prices..."):
-        for product in product_list:
-            data = extract_prices(product)
-            if data:
-                lowest_price = min(price for _, price in data)
-                for site, price in data:
-                    final_data.append({
+    with st.spinner("🔎 Searching for prices..."):
+        for product in products:
+            price_data = get_prices(product)
+            if price_data:
+                lowest_price = min(p[1] for p in price_data)
+                for site, price in price_data:
+                    results.append({
                         "Product": product,
                         "Site": site,
                         "Price ($)": price,
                         "Lowest Price ($)": lowest_price
                     })
             else:
-                final_data.append({
+                results.append({
                     "Product": product,
-                    "Site": "No results",
+                    "Site": "No results found",
                     "Price ($)": None,
                     "Lowest Price ($)": None
                 })
 
-    df = pd.DataFrame(final_data)
-    st.success("✅ Done!")
+    df = pd.DataFrame(results)
+    st.success("✅ Price comparison complete!")
     st.dataframe(df)
 
-    # Download as CSV
+    # Export option
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
