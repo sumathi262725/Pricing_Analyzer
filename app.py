@@ -57,28 +57,33 @@ if uploaded_file:
             price_data = get_prices(product)
             if price_data:
                 sites_prices = [f"{site}: ${price:.2f}" for site, price in price_data]
-                lowest_price = min(price for _, price in price_data)
+                lowest_entry = min(price_data, key=lambda x: x[1])
+                lowest_site, lowest_price = lowest_entry
                 grouped_results.append({
                     "Product": product,
                     "Sites & Prices": "<br>".join(sites_prices),
-                    "Lowest Price ($)": lowest_price
+                    "Lowest Price ($)": f"<b>${lowest_price:.2f}</b> ({lowest_site})",
+                    "_sort_price": lowest_price  # for sorting
                 })
             else:
                 grouped_results.append({
                     "Product": product,
                     "Sites & Prices": "No results found",
-                    "Lowest Price ($)": None
+                    "Lowest Price ($)": "N/A",
+                    "_sort_price": float("inf")  # sort missing values last
                 })
 
-    df = pd.DataFrame(grouped_results)
+    # Create dataframe and sort by lowest price
+    df = pd.DataFrame(grouped_results).sort_values(by="_sort_price").drop(columns=["_sort_price"])
 
-    # Display with HTML formatting
+    # Display the results with HTML formatting for the lowest price
     st.success("✅ Price comparison complete!")
-    st.write("### 🧾 Results")
+    st.write("### 🧾 Sorted Results (by Lowest Price)")
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # Clean export format for CSV
+    # Clean up the export version of the dataframe
     export_df = df.copy()
     export_df["Sites & Prices"] = export_df["Sites & Prices"].str.replace("<br>", " | ", regex=False)
+    export_df["Lowest Price ($)"] = export_df["Lowest Price ($)"].str.replace("<b>", "", regex=False).str.replace("</b>", "", regex=False)
     csv = export_df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison_grouped.csv", mime="text/csv")
