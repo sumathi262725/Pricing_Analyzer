@@ -45,9 +45,23 @@ def get_prices(product_name):
                 items.append((site, price))
             except:
                 continue
-    # Remove duplicates (same site for the same product)
-    unique_items = {site: price for site, price in items}
-    return list(unique_items.items())
+    
+    # Group prices by marketplace (e.g., eBay, Amazon) and get the lowest price per marketplace
+    grouped_items = {}
+    for site, price in items:
+        # We identify the marketplace by checking the site string
+        marketplace = site.split()[0]  # First part is typically the marketplace name (e.g., "eBay", "Amazon")
+        if marketplace not in grouped_items:
+            grouped_items[marketplace] = []
+        grouped_items[marketplace].append(price)
+    
+    # Get lowest price per marketplace
+    final_items = []
+    for marketplace, prices in grouped_items.items():
+        lowest_price = min(prices)
+        final_items.append((marketplace, lowest_price))
+
+    return final_items
 
 # Main app logic
 if uploaded_file:
