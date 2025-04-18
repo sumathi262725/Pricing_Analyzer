@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-from google_search_results import GoogleSearch
+from serpapi import GoogleSearch
 import os
 
 # Load your API key securely
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # Streamlit UI
 st.title("🛍️ Product Price Comparison")
@@ -18,7 +18,8 @@ def parse_file(file):
         df = pd.read_csv(file)
         return df.iloc[:, 0].dropna().tolist()
     elif file.name.endswith(".txt"):
-        return [line.strip() for line in file.readlines()]
+        content = file.read().decode("utf-8").splitlines()
+        return [line.strip() for line in content if line.strip()]
     return []
 
 # Search product prices using SerpAPI
@@ -47,7 +48,6 @@ def get_prices(product_name, country_code):
         price_str = item.get("price")
         if site and price_str:
             price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
-
             try:
                 price = float(price_cleaned)
                 items.append((site, price))
