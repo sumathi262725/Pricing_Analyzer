@@ -1,5 +1,5 @@
+scrapy==2.5.0
 streamlit==1.17.0
 pandas==1.5.3
-selenium==4.8.0
-chromedriver-autoinstaller==0.3.1
+
 
