@@ -1,5 +1,5 @@
 streamlit
-serpapi
+GoogleSearchResults
 pandas
 requests
 beautifulsoup4
