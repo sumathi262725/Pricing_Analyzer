@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-from google_search_results import GoogleSearch  # Updated import
+from serpapi import GoogleSearch  # Corrected import
 import os
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from collections import defaultdict
 from io import BytesIO
 
 # Load environment variables
@@ -15,30 +14,8 @@ SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 # Supported countries for SerpAPI's Google Shopping layout
 SUPPORTED_COUNTRIES = {
     "US": "United States",
-    "CA": "Canada",
-    "AU": "Australia",
-    "NZ": "New Zealand",
-    "CX": "Christmas Island",
-    "CC": "Cocos (Keeling) Islands",
-    "NF": "Norfolk Island",
-    "HM": "Heard Island and McDonald Islands",
-    "TK": "Tokelau"
-}
-
-# Extended country list
-ALL_COUNTRIES = {
-    "US": "United States",
-    "CA": "Canada",
-    "AU": "Australia",
-    "NZ": "New Zealand",
-    "IN": "India",
     "UK": "United Kingdom",
-    "DE": "Germany",
-    "CX": "Christmas Island",
-    "CC": "Cocos (Keeling) Islands",
-    "NF": "Norfolk Island",
-    "HM": "Heard Island and McDonald Islands",
-    "TK": "Tokelau"
+    "ID": "Indonesia"
 }
 
 # Improved fallback search for unsupported regions using Bing
@@ -87,13 +64,13 @@ if uploaded_file:
         # Select country
         country_code = st.selectbox(
             "\ud83c\udf0d Select Country for Search",
-            options=list(ALL_COUNTRIES.keys()),
-            format_func=lambda x: ALL_COUNTRIES[x]
+            options=list(SUPPORTED_COUNTRIES.keys()),
+            format_func=lambda x: SUPPORTED_COUNTRIES[x]
         )
 
         if country_code not in SUPPORTED_COUNTRIES:
             st.warning(
-                f"\u26a0\ufe0f The selected country ({ALL_COUNTRIES[country_code]}) may not return results due to limitations in Google Shopping's supported layout via SerpAPI."
+                f"\u26a0\ufe0f The selected country ({SUPPORTED_COUNTRIES[country_code]}) may not return results due to limitations in Google Shopping's supported layout via SerpAPI."
             )
 
         st.info(
