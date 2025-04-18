@@ -1,78 +1,39 @@
 import streamlit as st
-import pandas as pd
-import requests
-from datetime import datetime
 from serpapi import GoogleSearch
 
-# --- CONFIG ---
-st.set_page_config(page_title="🛒 Competitive Pricing Analyzer", layout="wide")
+# Title of the app
+st.title('Competitive Pricing Analyzer')
 
-# --- SCRAPING FUNCTION ---
-def search_serpapi(product_name, site):
-    # Define your API key here (you can also use Streamlit secrets for security)
-    api_key = st.secrets["serpapi"]["key"]
-    
+# Get the API key from Streamlit secrets
+api_key = st.secrets["serpapi"]["api_key"]
+
+# Input for product search query
+product_query = st.text_input("Enter product name for price analysis:")
+
+# Check if the user entered a query
+if product_query:
+    # Set up parameters for SerpAPI request
     params = {
-        "q": product_name,
+        "q": product_query,  # Use the input product name
         "api_key": api_key,
-        "engine": "google",
-        "google_domain": "google.com",
     }
-    
-    if site == "amazon":
-        params["tbm"] = "shop"
-        params["tbs"] = "p_ord:pr"
-    elif site == "walmart":
-        params["tbm"] = "shop"
-        params["tbs"] = "p_ord:pr"
-    elif site == "target":
-        params["tbm"] = "shop"
-        params["tbs"] = "p_ord:pr"
-    
-    search = GoogleSearch(params)
-    results = search.get_dict()
 
-    if "shopping_results" in results:
-        for result in results["shopping_results"]:
-            if result.get("price"):
-                return float(result["price"].replace('$', '').replace(',', ''))
-    
-    return None
+    try:
+        # Perform the search using SerpAPI
+        search = GoogleSearch(params)
+        results = search.get_dict()
 
-# --- APP LOGIC ---
-st.title("📊 Competitive Pricing Analyzer")
+        # Display the raw results for debugging
+        # st.write(results)
 
-uploaded_file = st.file_uploader("Upload your product CSV", type="csv")
+        # Extract price information and display
+        st.subheader(f"Pricing for '{product_query}'")
+        for result in results.get('organic_results', []):
+            if 'price' in result:
+                st.write(f"Website: {result.get('source', 'Unknown')} - Price: {result['price']}")
+            else:
+                st.write(f"Website: {result.get('source', 'Unknown')} - Price not available")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    st.info("Scraping competitor prices...")
+    except Exception as e:
+        st.error(f"Error occurred while fetching data: {e}")
 
-    competitor_sites = ["amazon", "walmart", "target"]
-    
-    # Add columns for each competitor's price
-    for site in competitor_sites:
-        df[f"{site}_Price"] = df["Product_Name"].apply(lambda name: search_serpapi(name, site))
-    
-    # Analyzing the lowest price
-    df['Lowest_Competitor_Price'] = df[["amazon_Price", "walmart_Price", "target_Price"]].min(axis=1)
-    df['Lowest_Price_Site'] = df[["amazon_Price", "walmart_Price", "target_Price"]].idxmin(axis=1)
-    
-    # Add column for price comparison (whether it's the lowest, above, or middle)
-    df['You_Are'] = df.apply(lambda row: "✅ Lowest" if row['Your_Price'] == row['Lowest_Competitor_Price']
-                             else ("🔼 Above" if row['Your_Price'] > row['Lowest_Competitor_Price'] else "🟡 Middle"), axis=1)
-    
-    st.success("✅ Scraping complete.")
-    st.dataframe(df)
-
-    # Display the price comparison bar chart
-    st.markdown("### 📉 Price Chart")
-    st.bar_chart(df.set_index("Product_Name")[['Your_Price', 'amazon_Price', 'walmart_Price', 'target_Price']])
-
-    # Download results button
-    st.download_button("📥 Download Results", df.to_csv(index=False), file_name="price_results.csv")
-
-# --- SECRET FILE SETUP ---
-# Please make sure you have a secrets.toml file in the project with your SerpAPI key:
-# [serpapi]
-# key = "YOUR_SERPAPI_KEY"
