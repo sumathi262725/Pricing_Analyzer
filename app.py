@@ -20,7 +20,7 @@ serpapi_api_key = st.secrets["serpapi_api_key"]  # Your API key for SerpAPI
 openai.api_key = st.secrets["openai_api_key"]
 
 # LangChain setup for smarter chat
-chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
+chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7, openai_api_key="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")
 conversation = ConversationChain(llm=chat_model)
 
 # Define the function to scrape prices from different e-commerce sites using SerpAPI
