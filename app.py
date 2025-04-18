@@ -16,7 +16,7 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # LangChain Chat setup
-chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7, openai_api_key=openai.api_key)
+chat_model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
 conversation = ConversationChain(llm=chat_model)
 
 # Fetch product prices via SerpAPI
