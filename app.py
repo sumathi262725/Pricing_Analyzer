@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-from serpapi import GoogleSearchResults
+from serpapi import GoogleSearch
 from datetime import datetime
 import openai
 from langchain.chat_models import ChatOpenAI
