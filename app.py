@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from serpapi import GoogleSearch
+from google_search_results import GoogleSearch  # Updated import
 import os
 import requests
 from bs4 import BeautifulSoup
