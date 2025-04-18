@@ -4,15 +4,12 @@ from serpapi import GoogleSearch
 import os
 
 # Load SerpAPI key from environment or use hardcoded fallback
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # App title
 st.set_page_config(page_title="Product Price Comparison", layout="centered")
 st.title("🛍️ Product Price Comparison")
 st.write("Upload a list of product names (CSV or TXT), and we’ll find the best prices across sites.")
-
-# Country selection
-country_code = st.selectbox("Select Country for Search", ["US", "UK", "DE", "IN", "CA"], index=0)
 
 # File uploader
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
@@ -68,7 +65,13 @@ def get_prices(product_name, country_code):
 
 # Main app logic
 if uploaded_file:
+    # Step 1: Parse the product list
     products = parse_file(uploaded_file)
+    
+    # Step 2: Display country selection after the file upload
+    country_code = st.selectbox("Select Country for Search", ["US", "UK", "DE", "IN", "CA"], index=0)
+
+    # Step 3: Run the search for prices
     grouped_results = []
 
     with st.spinner("🔍 Searching for prices..."):
