@@ -2,7 +2,7 @@ streamlit
 pandas
 openai
 langchain
-serpapi
+google-search-results
 matplotlib
 numpy
 scikit-learn
