@@ -1,10 +1,5 @@
+serpapi
 streamlit
 pandas
-python-dotenv
-serpapi
 requests
-beautifulsoup4
-openpyxl
-xlsxwriter
-
-
+python-dotenv
