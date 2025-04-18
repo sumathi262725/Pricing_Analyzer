@@ -1,40 +1,29 @@
 import streamlit as st
 import pandas as pd
-import time
-import os
+import requests
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 from fpdf import FPDF
+import os
 
 # CONFIG
 st.set_page_config(page_title="AI Price Tracker", layout="wide")
+ZENROWS_API_KEY = os.getenv("ZENROWS_API_KEY")
 
-# Scrape product prices from Google Shopping
+# Fetch product prices using ZenRows + Google Shopping
 def get_prices(product_name):
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
+    url = "https://api.zenrows.com/v1/"
+    params = {
+        "apikey": ZENROWS_API_KEY,
+        "url": f"https://www.google.com/search?tbm=shop&q={product_name}",
+        "js_render": "true"
+    }
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    response = requests.get(url, params=params)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    search_query = product_name.replace(" ", "+")
-    url = f"https://www.google.com/search?q={search_query}&tbm=shop"
-
-    driver.get(url)
-    time.sleep(3)
-
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    driver.quit()
-
-    prices = []
-    sites = []
+    prices, sites = [], []
 
     for item in soup.select("div.sh-dgr__content"):
         price_tag = item.select_one("span.T14wmb")
