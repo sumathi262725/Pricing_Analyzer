@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import os
 from serpapi import GoogleSearch
@@ -10,7 +10,6 @@ from io import BytesIO
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
-#serpapi.api_key=SERPAPI_KEY
 
 st.set_page_config(layout="wide")
 st.title("🛍️ Interactive Product Price Comparison (US Only)")
@@ -120,7 +119,7 @@ if uploaded_file:
             context = df.to_string(index=False)
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[
+                messages=[ 
                     {"role": "system", "content": "You are a helpful assistant for analyzing product prices."},
                     {"role": "user", "content": f"Product data:\n{context}\n\nQuestion: {chat_input}"}
                 ]
