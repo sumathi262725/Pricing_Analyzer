@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from serpapi import GoogleSearch
-import plotly.graph_objects as go
+import plotly.express as px
 import openai
 from io import BytesIO
 from dotenv import load_dotenv
@@ -12,15 +12,14 @@ load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# OpenAI Client Setup
+# Initialize OpenAI client
 if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY not set.")
+    st.error("❌ OPENAI_API_KEY not set. Please set the API key in your environment variables or secrets.")
 else:
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# Layout
 st.set_page_config(layout="wide")
-st.title("🛍️ Product Price Comparison App (US)")
+st.title("🛍️ Interactive Product Price Comparison (US Only)")
 
 # Tabs
 tabs = st.tabs(["📥 Upload & Compare", "📊 Charts", "💬 AI Chat"])
@@ -28,7 +27,7 @@ tabs = st.tabs(["📥 Upload & Compare", "📊 Charts", "💬 AI Chat"])
 # Tab 1: Upload & Compare
 with tabs[0]:
     st.subheader("Step 1: Upload Your Product List")
-    uploaded_file = st.file_uploader("Upload CSV or TXT", type=["csv", "txt"])
+    uploaded_file = st.file_uploader("Upload a CSV or TXT file with product names", type=["csv", "txt"])
 
     @st.cache_data
     def parse_file(file):
@@ -50,17 +49,17 @@ with tabs[0]:
         }
         search = GoogleSearch(params)
         results = search.get_dict()
+
         items = []
         for item in results.get("shopping_results", []):
             site = item.get("source")
             price_str = item.get("price")
             link = item.get("link")
-            rating = item.get("rating", 0)
             if site and price_str:
                 price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
                 try:
                     price = float(price_cleaned)
-                    items.append((site, price, link, rating))
+                    items.append((site, price, link))
                 except:
                     continue
         return items
@@ -73,96 +72,98 @@ with tabs[0]:
             for product in products:
                 price_data = get_prices(product)
                 if price_data:
-                    lowest_price = min(p[1] for p in price_data)
-                    for site, price, link, rating in price_data:
+                    lowest_price = min([p[1] for p in price_data])
+                    lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
+                    for i, (site, price, link) in enumerate(price_data):
+                        product_name = f"{product}" if i == 0 else ""
+                        lowest_price_value = f"${lowest_price:.2f} ({lowest_price_site})" if i == 0 else ""
                         results.append({
-                            "Product": product,
+                            "Product": product_name,
                             "Site": site,
                             "Price": price,
                             "URL": link,
-                            "Rating": rating,
-                            "Lowest Price": f"${lowest_price:.2f}" if price == lowest_price else ""
+                            "Lowest Price": lowest_price_value,
                         })
                 else:
                     results.append({
                         "Product": product,
-                        "Site": "No results",
+                        "Site": "No results found",
                         "Price": None,
                         "URL": None,
-                        "Rating": None,
-                        "Lowest Price": None
+                        "Lowest Price": None,
                     })
 
         df = pd.DataFrame(results)
-        st.session_state.df = df
+
+        # Make URLs clickable in a new column
+        df_display = df.copy()
+        df_display["Product Link"] = df_display["URL"].apply(lambda x: f"[\U0001F517 Link]({x})" if pd.notnull(x) else "")
 
         st.success("✅ Price comparison complete!")
-        st.dataframe(df.drop(columns=["URL"]))
+        st.dataframe(df_display.drop(columns=["URL"]).style.set_properties(subset=["Product", "Lowest Price"], align="center"))
 
-        # Export options
+        # Export
         st.subheader("📁 Export Results")
-
-        csv = df.to_csv(index=False, encoding="utf-8", errors="ignore").encode("utf-8")
-        st.download_button("📥 Download CSV", csv, "price_comparison.csv", mime="text/csv")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📅 Download CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
 
         excel_file = BytesIO()
-        df_clean = df.copy()
-        df_clean = df_clean.applymap(lambda x: str(x).encode("utf-8", "ignore").decode("utf-8") if isinstance(x, str) else x)
-        df_clean.to_excel(excel_file, index=False, engine='xlsxwriter')
+        df.to_excel(excel_file, index=False, engine='xlsxwriter')
         excel_file.seek(0)
-        st.download_button("📥 Download Excel", excel_file, "price_comparison.xlsx")
+        st.download_button("📅 Download Excel", data=excel_file, file_name="price_comparison.xlsx")
+
+        st.session_state.df = df
 
 # Tab 2: Charts
 with tabs[1]:
-    st.subheader("📊 Side-by-Side Price Charts")
+    st.subheader("📊 Interactive Price Comparison Charts")
     if "df" in st.session_state:
         df = st.session_state.df
         for product in df["Product"].unique():
             prod_df = df[df["Product"] == product].dropna(subset=["Price"])
-
             if not prod_df.empty:
-                fig = go.Figure()
-                for idx, row in prod_df.iterrows():
-                    fig.add_trace(go.Bar(
-                        x=[row["Site"]],
-                        y=[row["Price"]],
-                        name=row["Site"],
-                        marker_color="orange" if row["Price"] == prod_df["Price"].min() else "steelblue",
-                        hovertemplate=f"<b>{row['Site']}</b><br>Price: ${row['Price']:.2f}<br><a href='{row['URL']}' target='_blank'>Visit</a><extra></extra>"
-                    ))
-
-                fig.update_layout(
-                    title_text=f"Prices for {product}",
-                    barmode='group',
-                    xaxis_title="Site",
-                    yaxis_title="Price (USD)",
-                    showlegend=False,
-                    height=400
+                colors = ["orange" if price == prod_df["Price"].min() else "blue" for price in prod_df["Price"]]
+                fig = px.bar(
+                    prod_df,
+                    x="Site",
+                    y="Price",
+                    title=f"Prices for {product}",
+                    color=colors,
+                    color_discrete_sequence=["orange" if c == "orange" else "blue" for c in colors],
+                    text="Price"
                 )
+                fig.update_traces(marker_line_width=1.5, texttemplate="$%{text:.2f}", textposition="outside")
+                fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
                 st.plotly_chart(fig, use_container_width=True)
+
+                # Show product links below each chart
+                st.markdown("**🔗 Product Links:**")
+                for _, row in prod_df.iterrows():
+                    if row["URL"]:
+                        st.markdown(f"- [{row['Site']} - ${row['Price']:.2f}]({row['URL']})")
     else:
-        st.info("Upload a file first to see charts.")
+        st.info("Upload a product list in the first tab to generate charts.")
 
 # Tab 3: Chat
 with tabs[2]:
     st.subheader("💬 Ask the AI Assistant")
     if "df" in st.session_state:
         df = st.session_state.df
-        chat_input = st.text_input("Ask about the products or pricing:")
+        chat_input = st.text_input("Ask a question about the products or prices")
         if chat_input:
-            with st.spinner("🤖 Thinking..."):
+            with st.spinner("🧠 Thinking..."):
                 try:
                     context = df.drop(columns=["URL"]).to_string(index=False)
                     response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
-                            {"role": "system", "content": "You are an expert pricing analyst."},
+                            {"role": "system", "content": "You are a helpful assistant for analyzing product prices."},
                             {"role": "user", "content": f"Product data:\n{context}\n\nQuestion: {chat_input}"}
                         ]
                     )
                     st.markdown("**AI Response:**")
                     st.write(response.choices[0].message.content)
                 except openai.RateLimitError:
-                    st.error("🚫 OpenAI API quota exceeded.")
+                    st.error("🚫 OpenAI API quota exceeded. Please check your usage and billing at platform.openai.com.")
     else:
-        st.info("Upload product data first to ask questions.")
+        st.info("Upload a product list in the first tab to ask questions.")
