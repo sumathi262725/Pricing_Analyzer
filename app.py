@@ -64,12 +64,15 @@ if uploaded_file:
             if price_data:
                 lowest_price = min([p[1] for p in price_data])
                 lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
-                for site, price, link in price_data:
+                for i, (site, price, link) in enumerate(price_data):
+                    # For the first entry, show the product name and lowest price
+                    product_name = product if i == 0 else ""
+                    lowest_price_text = f"${lowest_price:.2f} ({lowest_price_site})" if price == lowest_price else ""
                     results.append({
-                        "Product": product if site == price_data[0][0] else "",  # Merge product name
+                        "Product": product_name,
                         "Site": site,
                         "Price": f"${price:.2f}",
-                        "Lowest Price": f"${lowest_price:.2f} ({lowest_price_site})" if price == lowest_price else ""
+                        "Lowest Price": lowest_price_text
                     })
             else:
                 results.append({
