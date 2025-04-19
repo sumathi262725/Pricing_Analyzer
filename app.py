@@ -6,7 +6,7 @@ import os
 import openai
 
 # Load API Keys
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") 
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 openai.api_key = OPENAI_API_KEY
 
