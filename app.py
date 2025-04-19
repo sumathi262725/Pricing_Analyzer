@@ -63,24 +63,25 @@ if uploaded_file:
             price_data = get_prices(product)
             if price_data:
                 lowest_price = min([p[1] for p in price_data])
+                lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
                 for site, price, link in price_data:
                     results.append({
-                        "Product": product,
+                        "Product": product if site == price_data[0][0] else "",  # Merge product name
                         "Site": site,
-                        "Price": price,
-                        "URL": link,
-                        "Lowest Price": lowest_price
+                        "Price": f"${price:.2f}",
+                        "Lowest Price": f"${lowest_price:.2f} ({lowest_price_site})" if price == lowest_price else ""
                     })
             else:
                 results.append({
                     "Product": product,
                     "Site": "No results found",
                     "Price": None,
-                    "URL": None,
                     "Lowest Price": None
                 })
 
     df = pd.DataFrame(results)
+
+    # Displaying the table
     st.success("✅ Price comparison complete!")
     st.dataframe(df)
 
@@ -90,12 +91,12 @@ if uploaded_file:
         prod_df = df[df["Product"] == product].dropna(subset=["Price"])
         if not prod_df.empty:
             prod_df["Price Label"] = prod_df.apply(lambda row: f"${row['Price']} ({row['Site']})", axis=1)
-            colors = ["orange" if price == prod_df["Lowest Price"].min() else "blue" for price in prod_df["Price"]]
+            colors = ["orange" if price == prod_df["Price"].min() else "blue" for price in prod_df["Price"]]
             fig = px.bar(
                 prod_df,
                 x="Site",
                 y="Price",
-                hover_data={"URL": True},
+                hover_data={"Price Label": True},
                 color=colors,
                 color_discrete_sequence=["blue", "orange"],
                 title=f"Prices for {product}"
