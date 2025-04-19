@@ -10,7 +10,7 @@ from io import BytesIO
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
-serpapi.api_key=SERPAPI_KEY
+#serpapi.api_key=SERPAPI_KEY
 
 st.set_page_config(layout="wide")
 st.title("🛍️ Interactive Product Price Comparison (US Only)")
