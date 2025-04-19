@@ -7,7 +7,7 @@ import openai
 from io import BytesIO
 
 # Load environment variables
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
@@ -42,12 +42,11 @@ def get_prices(product_name):
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
-        link = item.get("link")  # Ensure we're fetching the link here
+        link = item.get("link")
         if site and price_str:
             price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
             try:
                 price = float(price_cleaned)
-                # Handle case where the link might be missing or None
                 link = link if link else "No URL available"
                 items.append((site, price, link))
             except:
@@ -65,49 +64,54 @@ if uploaded_file:
                 lowest_price = min([p[1] for p in price_data])
                 lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
                 for i, (site, price, link) in enumerate(price_data):
-                    # For the first entry, show the product name and lowest price
                     product_name = f"{product}" if i == 0 else ""
                     lowest_price_value = f"${lowest_price:.2f} ({lowest_price_site})" if i == 0 else ""
                     results.append({
                         "Product": product_name,
                         "Site": site,
-                        "Price": f"${price:.2f}",
+                        "Price": price,
+                        "Price Display": f"${price:.2f}",
                         "Lowest Price": lowest_price_value,
+                        "Link": link
                     })
             else:
                 results.append({
                     "Product": product,
                     "Site": "No results found",
                     "Price": None,
+                    "Price Display": None,
                     "Lowest Price": None,
+                    "Link": None
                 })
 
     df = pd.DataFrame(results)
 
-    # Displaying the table
+    # Display table
     st.success("✅ Price comparison complete!")
-    st.dataframe(df.style.set_properties(subset=["Product", "Lowest Price"], align="center"))
+    st.dataframe(df[["Product", "Site", "Price Display", "Lowest Price"]].style.set_properties(
+        subset=["Product", "Lowest Price"], align="center"))
 
-    # Charts per product
+    # Price Charts
     st.subheader("📊 Interactive Price Comparison Charts")
     for product in df["Product"].unique():
         prod_df = df[df["Product"] == product].dropna(subset=["Price"])
         if not prod_df.empty:
-            prod_df["Price Label"] = prod_df.apply(lambda row: f"${row['Price']} ({row['Site']})", axis=1)
-            colors = ["orange" if price == prod_df["Price"].min() else "blue" for price in prod_df["Price"]]
+            prod_df["Price Label"] = prod_df.apply(lambda row: f"${row['Price']:.2f} ({row['Site']})", axis=1)
+            min_price = prod_df["Price"].min()
+            prod_df["Highlight"] = prod_df["Price"].apply(lambda x: "Lowest" if x == min_price else "Other")
             fig = px.bar(
                 prod_df,
                 x="Site",
                 y="Price",
-                hover_data={"Price Label": True},
-                color=colors,
-                color_discrete_sequence=["blue", "orange"],
+                color="Highlight",
+                color_discrete_map={"Lowest": "orange", "Other": "blue"},
+                hover_data=["Price Label", "Link"],
                 title=f"Prices for {product}"
             )
             fig.update_traces(marker_line_width=1.5)
             st.plotly_chart(fig, use_container_width=True)
 
-    # Export
+    # Export Buttons
     st.subheader("📁 Export Results")
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Download CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
@@ -117,18 +121,18 @@ if uploaded_file:
     excel_file.seek(0)
     st.download_button("📥 Download Excel", data=excel_file, file_name="price_comparison.xlsx")
 
-    # Chatbot Section
+    # Chatbot
     st.subheader("💬 Ask the AI Assistant")
     chat_input = st.text_input("Type your question about the prices or products")
     if chat_input:
         with st.spinner("🤖 Thinking..."):
-            context = df.to_string(index=False)
-           response = openai.completions.create(
-    model="gpt-3.5-turbo",
-                 messages=[ 
+            context = df[["Product", "Site", "Price Display", "Lowest Price"]].to_string(index=False)
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
                     {"role": "system", "content": "You are a helpful assistant for analyzing product prices."},
                     {"role": "user", "content": f"Product data:\n{context}\n\nQuestion: {chat_input}"}
                 ]
             )
             st.markdown("**AI Response:**")
-            st.write(response['choices'][0]['message']['content'])
+            st.write(response.choices[0].message.content)
