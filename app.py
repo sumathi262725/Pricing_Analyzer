@@ -7,7 +7,7 @@ import openai
 from io import BytesIO
 
 # Load environment variables
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "your_serpapi_key_here"
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
@@ -42,11 +42,12 @@ def get_prices(product_name):
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
-        link = item.get("link")
+        link = item.get("link")  # Ensure we're fetching the link here
         if site and price_str:
             price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
             try:
                 price = float(price_cleaned)
+                # Handle case where the link might be missing or None
                 link = link if link else "No URL available"
                 items.append((site, price, link))
             except:
@@ -64,6 +65,7 @@ if uploaded_file:
                 lowest_price = min([p[1] for p in price_data])
                 lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
                 for i, (site, price, link) in enumerate(price_data):
+                    # For the first entry, show the product name and lowest price
                     product_name = f"{product}" if i == 0 else ""
                     lowest_price_value = f"${lowest_price:.2f} ({lowest_price_site})" if i == 0 else ""
                     results.append({
@@ -121,12 +123,12 @@ if uploaded_file:
     if chat_input:
         with st.spinner("🤖 Thinking..."):
             context = df.to_string(index=False)
-            response = openai.completions.create(
-                model="gpt-4",
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
                 messages=[ 
                     {"role": "system", "content": "You are a helpful assistant for analyzing product prices."},
                     {"role": "user", "content": f"Product data:\n{context}\n\nQuestion: {chat_input}"}
                 ]
             )
             st.markdown("**AI Response:**")
-            st.write(response["choices"][0]["message"]["content"])
+            st.write(response['choices'][0]['message']['content'])
