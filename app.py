@@ -2,17 +2,18 @@ import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
 import os
+import matplotlib.pyplot as plt
 
 # Load API Key
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
-# Streamlit UI
+# UI Title
 st.title("🛍️ Product Price Comparison (US Only)")
 st.write("Upload a list of product names (CSV or TXT) to compare prices from US shopping sites 🇺🇸.")
 
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
-# Parse uploaded file
+# File Parser
 def parse_file(file):
     if file.name.endswith(".csv"):
         df = pd.read_csv(file)
@@ -22,7 +23,7 @@ def parse_file(file):
         return [line.strip() for line in content if line.strip()]
     return []
 
-# Search product prices
+# SerpAPI Search
 def get_prices(product_name):
     params = {
         "engine": "google_shopping",
@@ -46,7 +47,25 @@ def get_prices(product_name):
                 continue
     return items
 
-# Main logic
+# Chart Renderer
+def plot_prices(product_name, price_data):
+    if not price_data:
+        st.warning(f"No prices found for {product_name}")
+        return
+    sites = [s for s, _ in price_data]
+    prices = [p for _, p in price_data]
+
+    fig, ax = plt.subplots()
+    bars = ax.bar(sites, prices, color="#4CAF50")
+    ax.set_title(f"{product_name} - Price Comparison")
+    ax.set_ylabel("Price (USD)")
+    ax.set_xlabel("Retailer")
+    for bar, price in zip(bars, prices):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(), f"${price:.2f}", 
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    st.pyplot(fig)
+
+# Main Execution
 if uploaded_file:
     products = parse_file(uploaded_file)
     results = []
@@ -59,7 +78,7 @@ if uploaded_file:
                 lowest_site, lowest_price = sorted_data[0]
                 for idx, (site, price) in enumerate(sorted_data):
                     results.append({
-                        "Product": product if idx == 0 else "",  # Show product only on first row
+                        "Product": product if idx == 0 else "",
                         "Region": "US",
                         "Site": site,
                         "Price": price,
@@ -75,10 +94,9 @@ if uploaded_file:
                 })
 
     df = pd.DataFrame(results)
-
     st.success("✅ Price comparison complete!")
 
-    # Styling logic
+    # Styling
     def highlight_lowest(val):
         if isinstance(val, str) and val.startswith("$"):
             return "color: green; font-weight: bold; text-align: center"
@@ -92,6 +110,13 @@ if uploaded_file:
 
     st.dataframe(styled_df, use_container_width=True)
 
-    # Download as CSV
+    # Show bar charts
+    for product in products:
+        data = df[df["Product"] == product]
+        if data.empty:
+            data = df[df["Product"] == ""].iloc[0:len(df[df["Product"] == ""])]
+        plot_prices(product, [(row["Site"], row["Price"]) for _, row in df[df["Product"] == product].iterrows() if row["Price"]])
+
+    # CSV Download
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
