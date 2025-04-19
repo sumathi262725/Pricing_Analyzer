@@ -9,7 +9,6 @@ import re
 from dotenv import load_dotenv
 load_dotenv()
 
-
 # Load API keys
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
