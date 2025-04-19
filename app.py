@@ -123,9 +123,9 @@ if uploaded_file:
     if chat_input:
         with st.spinner("🤖 Thinking..."):
             context = df.to_string(index=False)
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[ 
+           response = openai.completions.create(
+    model="gpt-3.5-turbo",
+                 messages=[ 
                     {"role": "system", "content": "You are a helpful assistant for analyzing product prices."},
                     {"role": "user", "content": f"Product data:\n{context}\n\nQuestion: {chat_input}"}
                 ]
