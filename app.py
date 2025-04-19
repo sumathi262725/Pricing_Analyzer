@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 from serpapi import GoogleSearch
-import plotly.express as px
 import plotly.graph_objects as go
 import openai
 from io import BytesIO
@@ -41,9 +40,6 @@ with tabs[0]:
             return [line.strip() for line in content if line.strip()]
         return []
 
-    def normalize_name(name):
-        return name.lower().strip()
-
     def get_prices(product_name):
         params = {
             "engine": "google_shopping",
@@ -75,11 +71,10 @@ with tabs[0]:
 
         with st.spinner("🔍 Searching for prices..."):
             for product in products:
-                norm_name = normalize_name(product)
-                price_data = get_prices(norm_name)
+                price_data = get_prices(product)
                 if price_data:
                     lowest_price = min(p[1] for p in price_data)
-                    for i, (site, price, link, rating) in enumerate(price_data):
+                    for site, price, link, rating in price_data:
                         results.append({
                             "Product": product,
                             "Site": site,
@@ -126,8 +121,6 @@ with tabs[1]:
             prod_df = df[df["Product"] == product].dropna(subset=["Price"])
 
             if not prod_df.empty:
-                colors = ["orange" if price == prod_df["Price"].min() else "steelblue" for price in prod_df["Price"]]
-
                 fig = go.Figure()
                 for idx, row in prod_df.iterrows():
                     fig.add_trace(go.Bar(
