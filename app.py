@@ -66,27 +66,27 @@ if uploaded_file:
                 lowest_price_site = [site for site, price, _ in price_data if price == lowest_price][0]
                 for i, (site, price, link) in enumerate(price_data):
                     # For the first entry, show the product name and lowest price
-                    product_name = product if i == 0 else ""
-                    lowest_price_text = f"${lowest_price:.2f} ({lowest_price_site})" if price == lowest_price else ""
+                    product_name = f"{product}" if i == 0 else ""
+                    lowest_price_value = f"${lowest_price:.2f} ({lowest_price_site})" if i == 0 else ""
                     results.append({
                         "Product": product_name,
                         "Site": site,
                         "Price": f"${price:.2f}",
-                        "Lowest Price": lowest_price_text
+                        "Lowest Price": lowest_price_value,
                     })
             else:
                 results.append({
                     "Product": product,
                     "Site": "No results found",
                     "Price": None,
-                    "Lowest Price": None
+                    "Lowest Price": None,
                 })
 
     df = pd.DataFrame(results)
 
     # Displaying the table
     st.success("✅ Price comparison complete!")
-    st.dataframe(df)
+    st.dataframe(df.style.set_properties(subset=["Product", "Lowest Price"], align="center"))
 
     # Charts per product
     st.subheader("📊 Interactive Price Comparison Charts")
