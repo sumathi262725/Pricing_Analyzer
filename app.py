@@ -15,15 +15,15 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialize OpenAI client
 if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY not set. Please set the API key in your environment variables or secrets.")
+    st.error("\u274c OPENAI_API_KEY not set. Please set the API key in your environment variables or secrets.")
 else:
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 st.set_page_config(layout="wide")
-st.title("🛍️ Interactive Product Price Comparison (US Only)")
+st.title("\ud83d\udecd\ufe0f Interactive Product Price Comparison (US Only)")
 
 # Tabs
-tabs = st.tabs(["📥 Upload & Compare", "📊 Charts", "💬 AI Chat"])
+tabs = st.tabs(["\ud83d\udcc5 Upload & Compare", "\ud83d\udcca Charts", "\ud83d\udcac AI Chat"])
 
 # Tab 1: Upload & Compare
 with tabs[0]:
@@ -72,7 +72,7 @@ with tabs[0]:
         products = parse_file(uploaded_file)
         results = []
 
-        with st.spinner("🔍 Searching for prices..."):
+        with st.spinner("\ud83d\udd0d Searching for prices..."):
             for product in products:
                 normalized = normalize_name(product)
                 price_data = get_prices(normalized)
@@ -100,71 +100,99 @@ with tabs[0]:
 
         df = pd.DataFrame(results)
 
-        st.success("✅ Price comparison complete!")
+        st.success("\u2705 Price comparison complete!")
         st.dataframe(df.drop(columns=["URL"]).style.set_properties(subset=["Product", "Lowest Price"], align="center"))
 
         # Export
-        st.subheader("📁 Export Results")
+        st.subheader("\ud83d\udcc1 Export Results")
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
+        st.download_button("\ud83d\udcc5 Download CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
 
         excel_file = BytesIO()
         df.to_excel(excel_file, index=False, engine='xlsxwriter')
         excel_file.seek(0)
-        st.download_button("📥 Download Excel", data=excel_file, file_name="price_comparison.xlsx")
+        st.download_button("\ud83d\udcc5 Download Excel", data=excel_file, file_name="price_comparison.xlsx")
 
         st.session_state.df = df
 
 # Tab 2: Charts
 with tabs[1]:
-    st.subheader("📊 Interactive Price Comparison Charts")
+    st.subheader("\ud83d\udcca Interactive Price Comparison Charts with Seller Ratings")
     if "df" in st.session_state:
         df = st.session_state.df.copy()
 
-        for product in df["Product"].unique():
-            prod_df = df[df["Product"] == product].dropna(subset=["Price"])
+        grouped = df.groupby("Product")
+        col1, col2 = st.columns(2)
+        toggle = True
 
-            if not prod_df.empty:
-                # Determine color column for highlighting lowest price
-                min_price = prod_df["Price"].min()
-                prod_df["Highlight"] = prod_df["Price"].apply(lambda p: "Lowest" if p == min_price else "Other")
+        for product, group in grouped:
+            group = group.dropna(subset=["Price"])
+            if group.empty:
+                continue
 
-                # Format hover text (without HTML links, since Plotly disables them in tooltips)
-                prod_df["Hover"] = prod_df.apply(
-                    lambda row: f"{row['Site']}: ${row['Price']:.2f}"
-                    + (f"\nURL: {row['URL']}" if row['URL'] else ""),
-                    axis=1
-                )
+            group["Seller Rating"] = group["Site"].apply(lambda x: {
+                "Amazon": 4.7, "Walmart": 4.3, "Target": 4.1, "Best Buy": 4.4
+            }.get(x, 4.0))
 
-                fig = px.bar(
-                    prod_df,
-                    x="Site",
-                    y="Price",
-                    color="Highlight",
-                    color_discrete_map={"Lowest": "orange", "Other": "blue"},
-                    title=f"Prices for {product}",
-                    hover_data={"Hover": True, "Price": False, "Highlight": False, "URL": False}
-                )
+            min_price = group["Price"].min()
+            group["Color"] = group["Price"].apply(lambda x: "Lowest Price" if x == min_price else "Other")
 
-                fig.update_traces(marker_line_width=1.5, hovertemplate="%{customdata[0]}")
-                st.plotly_chart(fig, use_container_width=True)
+            group["Hover"] = group.apply(
+                lambda row: f"{row['Site']}: ${row['Price']:.2f}<br>Rating: {row['Seller Rating']}/5" +
+                            (f"<br>{row['URL']}" if row['URL'] else ""), axis=1)
 
-                # Show direct links below chart
-                st.markdown("🔗 **Product Links:**")
-                for _, row in prod_df.iterrows():
-                    if row["URL"]:
-                        st.markdown(f"- [{row['Site']}]({row['URL']}) - `${row['Price']:.2f}`")
+            fig = px.bar(
+                group,
+                x="Site",
+                y="Price",
+                color="Color",
+                color_discrete_map={"Lowest Price": "orange", "Other": "steelblue"},
+                hover_data={"Hover": True, "Price": False, "Color": False, "URL": False, "Seller Rating": False},
+            )
+
+            fig.add_scatter(
+                x=group["Site"],
+                y=group["Seller Rating"],
+                mode='lines+markers',
+                name='Seller Rating (0–5)',
+                yaxis='y2',
+                marker=dict(size=8, color='green'),
+                line=dict(dash='dash')
+            )
+
+            fig.update_layout(
+                title=f"\ud83d\uded2 {product}",
+                xaxis=dict(title="Website"),
+                yaxis=dict(title="Price (USD)"),
+                yaxis2=dict(title="Seller Rating", overlaying='y', side='right', range=[0, 5]),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                hovermode="x unified",
+                bargap=0.3
+            )
+
+            if toggle:
+                with col1:
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                with col2:
+                    st.plotly_chart(fig, use_container_width=True)
+            toggle = not toggle
+
+            st.markdown("\ud83d\udd17 **Product Links:**")
+            for _, row in group.iterrows():
+                if row["URL"]:
+                    st.markdown(f"- [{row['Site']}]({row['URL']}) - `${row['Price']:.2f}`, Rating: {row['Seller Rating']}/5")
     else:
         st.info("Upload a product list in the first tab to generate charts.")
 
 # Tab 3: Chat
 with tabs[2]:
-    st.subheader("💬 Ask the AI Assistant")
+    st.subheader("\ud83d\udcac Ask the AI Assistant")
     if "df" in st.session_state:
         df = st.session_state.df
         chat_input = st.text_input("Ask a question about the products or prices")
         if chat_input:
-            with st.spinner("🤖 Thinking..."):
+            with st.spinner("\ud83e\udde0 Thinking..."):
                 try:
                     context = df.drop(columns=["URL"]).to_string(index=False)
                     response = client.chat.completions.create(
@@ -177,6 +205,6 @@ with tabs[2]:
                     st.markdown("**AI Response:**")
                     st.write(response.choices[0].message.content)
                 except openai.RateLimitError:
-                    st.error("🚫 OpenAI API quota exceeded. Please check your usage and billing at platform.openai.com.")
+                    st.error("\ud83d\udeab OpenAI API quota exceeded. Please check your usage and billing at platform.openai.com.")
     else:
         st.info("Upload a product list in the first tab to ask questions.")
