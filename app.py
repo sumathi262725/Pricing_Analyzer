@@ -2,30 +2,28 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from serpapi import GoogleSearch
-import os
 import openai
+import os
 
-# Load API Keys
-SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
-openai.api_key = OPENAI_API_KEY
+# Load API keys from environment
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# App Title
-st.title("🛍️ US Product Price Comparison")
-st.write("Upload a product list (CSV or TXT) to compare US prices and visualize them with charts.")
+st.set_page_config(page_title="🛒 Price Comparison App", layout="wide")
+st.title("🛍️ Product Price Comparison - US Only")
+st.write("Upload a list of product names (CSV or TXT), and compare prices from shopping sites in the US 🇺🇸.")
 
 uploaded_file = st.file_uploader("📄 Upload product list", type=["csv", "txt"])
 
-# Parse File
 def parse_file(file):
     if file.name.endswith(".csv"):
         df = pd.read_csv(file)
         return df.iloc[:, 0].dropna().tolist()
     elif file.name.endswith(".txt"):
-        return [line.strip() for line in file.read().decode("utf-8").splitlines() if line.strip()]
+        content = file.read().decode("utf-8").splitlines()
+        return [line.strip() for line in content if line.strip()]
     return []
 
-# Get Prices from SerpAPI
 def get_prices(product_name):
     params = {
         "engine": "google_shopping",
@@ -49,91 +47,93 @@ def get_prices(product_name):
                 continue
     return items
 
-# Plot Chart
-def plot_prices(product_name, price_data):
-    if not price_data:
-        st.warning(f"No prices found for {product_name}")
-        return
+def handle_chat(prompt, df):
+    # Dummy logic for now
+    if "cheapest" in prompt.lower():
+        cheapest = df[df["Price"] == df["Price"].min()]
+        return f"📌 The lowest price overall is ${cheapest.iloc[0]['Price']} for {cheapest.iloc[0]['Product']} on {cheapest.iloc[0]['Site']}."
+    return "🤖 I'm still learning! Try asking about the cheapest product or site."
 
-    sites = [site for site, _ in price_data]
-    prices = [price for _, price in price_data]
-
-    min_index = prices.index(min(prices))
-    colors = ['#4CAF50' if i != min_index else 'red' for i in range(len(prices))]
-
-    fig, ax = plt.subplots()
-    bars = ax.bar(sites, prices, color=colors)
-    ax.set_title(f"{product_name} - Price Comparison")
-    ax.set_ylabel("Price (USD)")
-    ax.set_xlabel("Retailer")
-    for bar, price in zip(bars, prices):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(), f"${price:.2f}", 
-                ha='center', va='bottom', fontsize=9, fontweight='bold')
-    st.pyplot(fig)
-
-# Main Logic
 if uploaded_file:
     products = parse_file(uploaded_file)
     results = []
 
-    with st.spinner("🔍 Searching for prices..."):
+    with st.spinner("🔎 Searching for prices..."):
         for product in products:
             price_data = get_prices(product)
             if price_data:
-                sorted_data = sorted(price_data, key=lambda x: x[1])
-                lowest_site, lowest_price = sorted_data[0]
-                for idx, (site, price) in enumerate(sorted_data):
+                lowest_price = min(p[1] for p in price_data)
+                for site, price in price_data:
                     results.append({
-                        "Product": product if idx == 0 else "",
-                        "Region": "US",
+                        "Product": product,
                         "Site": site,
                         "Price": price,
-                        "Lowest Price in Region": f"${lowest_price:.2f} ({lowest_site})" if idx == 0 else ""
+                        "Lowest Price in Product": lowest_price
                     })
             else:
                 results.append({
                     "Product": product,
-                    "Region": "US",
                     "Site": "No results found",
                     "Price": None,
-                    "Lowest Price in Region": "No results"
+                    "Lowest Price in Product": None
                 })
 
     df = pd.DataFrame(results)
+
+    # Format output
     st.success("✅ Price comparison complete!")
 
-    def highlight_lowest(val):
-        if isinstance(val, str) and val.startswith("$"):
-            return "color: red; font-weight: bold; text-align: center"
-        return ""
+    formatted_data = []
+    for product in df["Product"].unique():
+        product_rows = df[df["Product"] == product]
+        min_price = product_rows["Price"].min()
+        formatted_product = product
+        for i, row in product_rows.iterrows():
+            formatted_price = f"${row['Price']} ({row['Site']})" if row['Price'] else "N/A"
+            formatted_data.append({
+                "Product": formatted_product,
+                "Site": row['Site'],
+                "Price": formatted_price,
+                "Lowest Price": f"**🟩 ${min_price} ({row['Site']})**" if row['Price'] == min_price else ""
+            })
+            formatted_product = ""  # For merging effect
 
-    styled_df = df.style \
-        .applymap(lambda v: "font-weight: bold; text-align: center" if v != "" else "color: transparent", subset=["Product"]) \
-        .applymap(highlight_lowest, subset=["Lowest Price in Region"])
+    formatted_df = pd.DataFrame(formatted_data)
+    st.dataframe(formatted_df, use_container_width=True)
 
-    st.dataframe(styled_df, use_container_width=True)
+    # Charts per product
+    st.markdown("---")
+    st.subheader("📊 Price Charts")
+    for product in df["Product"].unique():
+        product_data = df[df["Product"] == product].dropna(subset=["Price"])
+        if not product_data.empty:
+            fig, ax = plt.subplots()
+            bars = ax.bar(product_data["Site"], product_data["Price"], color="skyblue")
+            min_price_idx = product_data["Price"].idxmin()
+            for i, bar in enumerate(bars):
+                if product_data.index[i] == min_price_idx:
+                    bar.set_color("green")
+                    bar.set_edgecolor("black")
+                    bar.set_linewidth(2)
+            ax.set_title(f"Prices for: {product}")
+            ax.set_ylabel("Price ($)")
+            ax.set_xlabel("Site")
+            st.pyplot(fig)
 
-    for product in products:
-        product_data = df[df["Product"] == product]
-        if product_data.empty:
-            product_data = df[df["Product"] == ""]
-        plot_prices(product, [(row["Site"], row["Price"]) for _, row in product_data.iterrows() if row["Price"]])
-
-    # CSV Download
+    # Download CSV
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results as CSV", data=csv, file_name="price_comparison.csv", mime="text/csv")
 
-# Chatbot Interface
+# Chatbot
 st.markdown("---")
-st.subheader("💬 Ask me anything about product prices")
+st.markdown("### 🤖 Chat with PriceBot")
+if prompt := st.chat_input("Ask about product prices, cheapest options, or sites..."):
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-user_input = st.text_input("Type your question:")
-
-if user_input:
-    with st.spinner("Thinking..."):
-        prompt = f"You are an assistant helping with product price comparison. The user asked:\n\n{user_input}"
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        st.write(response.choices[0].message.content.strip())
+    with st.chat_message("assistant"):
+        if uploaded_file:
+            response = handle_chat(prompt, df)
+        else:
+            response = "⚠️ Please upload a product list to start."
+        st.markdown(response)
