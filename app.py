@@ -1,12 +1,11 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
 from serpapi import GoogleSearch
 import os
 import io
 import matplotlib.pyplot as plt
-from fpdf import FPDF
 
-# Load your API key securely
+# Load API Key
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or "97b3eb326b26893076b6054759bd07126a3615ef525828bc4dcb7bf84265d3bc"
 
 # Streamlit UI
@@ -51,29 +50,6 @@ def get_prices(product_name):
                 continue
     return items
 
-# PDF Export helper
-def generate_pdf(dataframe):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=10)
-
-    col_width = pdf.w / 4.5
-    row_height = 8
-
-    pdf.set_fill_color(220, 220, 220)
-    for header in dataframe.columns:
-        pdf.cell(col_width, row_height, header, border=1, ln=0, align='C', fill=True)
-    pdf.ln(row_height)
-
-    for i, row in dataframe.iterrows():
-        for item in row:
-            pdf.cell(col_width, row_height, str(item), border=1)
-        pdf.ln(row_height)
-
-    pdf_output = io.BytesIO()
-    pdf.output(pdf_output)
-    return pdf_output.getvalue()
-
 # Main logic
 if uploaded_file:
     products = parse_file(uploaded_file)
@@ -83,44 +59,53 @@ if uploaded_file:
         for product in products:
             price_data = get_prices(product)
             if price_data:
-                lowest_price = min(p[1] for p in price_data)
-                for site, price in price_data:
-                    results.append({
-                        "Product": product,
-                        "Site": site,
-                        "Price (USD)": price,
-                        "Lowest Price (USD)": lowest_price
-                    })
+                # Get site offering lowest price
+                site, price = min(price_data, key=lambda x: x[1])
+                formatted = f"${price:.2f} ({site})"
+                results.append({
+                    "Product & Lowest Price": f"{product}",
+                    "Lowest Price": formatted
+                })
             else:
                 results.append({
-                    "Product": product,
-                    "Site": "No results found",
-                    "Price (USD)": None,
-                    "Lowest Price (USD)": None
+                    "Product & Lowest Price": f"{product}",
+                    "Lowest Price": "No results found"
                 })
 
     df = pd.DataFrame(results)
-    st.success("✅ US price comparison complete!")
-    st.dataframe(df)
 
-    # 📊 Price Chart
-    st.subheader("📊 Price Chart (per Product)")
-    for product in df["Product"].unique():
-        product_data = df[df["Product"] == product].dropna(subset=["Price (USD)"])
-        if not product_data.empty:
+    st.success("✅ US price comparison complete!")
+
+    # 🖼️ Stylish display
+    def highlight_price(val):
+        if val != "No results found":
+            return 'font-weight: bold; color: green; text-align: center;'
+        return 'color: red; text-align: center;'
+
+    styled_df = df.style.set_properties(**{
+        'Product & Lowest Price': 'text-align: center; font-weight: bold'
+    }).applymap(highlight_price, subset=['Lowest Price'])
+
+    st.dataframe(styled_df, use_container_width=True)
+
+    # 📊 Chart
+    st.subheader("📊 Price Chart")
+    for product_row in results:
+        product = product_row["Product & Lowest Price"]
+        price_info = product_row["Lowest Price"]
+        if price_info != "No results found":
+            price_val = float(price_info.split(" ")[0].replace("$", ""))
+            site = price_info.split("(")[-1].rstrip(")")
             fig, ax = plt.subplots()
-            ax.barh(product_data["Site"], product_data["Price (USD)"], color="skyblue")
+            ax.barh([site], [price_val], color="skyblue")
             ax.set_xlabel("Price (USD)")
-            ax.set_title(f"{product} - Prices by Site")
+            ax.set_title(f"{product} - Lowest Price")
             st.pyplot(fig)
 
-    # 📥 Download options
+    # 📥 Export to CSV / Excel
     csv = df.to_csv(index=False)
     st.download_button("📥 Download Results (CSV)", data=csv, file_name="us_price_comparison.csv", mime="text/csv")
 
     excel_buffer = io.BytesIO()
     df.to_excel(excel_buffer, index=False, engine='xlsxwriter')
     st.download_button("📊 Download Results (Excel)", data=excel_buffer, file_name="us_price_comparison.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    pdf_data = generate_pdf(df)
-    st.download_button("📝 Download Results (PDF)", data=pdf_data, file_name="us_price_comparison.pdf", mime="application/pdf")
