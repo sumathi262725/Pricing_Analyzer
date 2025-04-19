@@ -6,6 +6,9 @@ import plotly.express as px
 import openai
 from io import BytesIO
 import re
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Load API keys
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") 
