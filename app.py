@@ -119,23 +119,41 @@ with tabs[0]:
 with tabs[1]:
     st.subheader("📊 Interactive Price Comparison Charts")
     if "df" in st.session_state:
-        df = st.session_state.df
+        df = st.session_state.df.copy()
+
         for product in df["Product"].unique():
             prod_df = df[df["Product"] == product].dropna(subset=["Price"])
+
             if not prod_df.empty:
-                colors = ["orange" if price == prod_df["Price"].min() else "blue" for price in prod_df["Price"]]
-                hover_texts = [f"{row['Site']}: ${row['Price']:.2f}<br><a href='{row['URL']}' target='_blank'>Visit</a>" if row['URL'] else f"{row['Site']}: ${row['Price']:.2f}" for _, row in prod_df.iterrows()]
+                # Determine color column for highlighting lowest price
+                min_price = prod_df["Price"].min()
+                prod_df["Highlight"] = prod_df["Price"].apply(lambda p: "Lowest" if p == min_price else "Other")
+
+                # Format hover text (without HTML links, since Plotly disables them in tooltips)
+                prod_df["Hover"] = prod_df.apply(
+                    lambda row: f"{row['Site']}: ${row['Price']:.2f}"
+                    + (f"\nURL: {row['URL']}" if row['URL'] else ""),
+                    axis=1
+                )
+
                 fig = px.bar(
                     prod_df,
                     x="Site",
                     y="Price",
+                    color="Highlight",
+                    color_discrete_map={"Lowest": "orange", "Other": "blue"},
                     title=f"Prices for {product}",
-                    hover_name=hover_texts,
-                    color=colors,
-                    color_discrete_sequence=["blue", "orange"]
+                    hover_data={"Hover": True, "Price": False, "Highlight": False, "URL": False}
                 )
-                fig.update_traces(marker_line_width=1.5)
+
+                fig.update_traces(marker_line_width=1.5, hovertemplate="%{customdata[0]}")
                 st.plotly_chart(fig, use_container_width=True)
+
+                # Show direct links below chart
+                st.markdown("🔗 **Product Links:**")
+                for _, row in prod_df.iterrows():
+                    if row["URL"]:
+                        st.markdown(f"- [{row['Site']}]({row['URL']}) - `${row['Price']:.2f}`")
     else:
         st.info("Upload a product list in the first tab to generate charts.")
 
