@@ -42,11 +42,13 @@ def get_prices(product_name):
     for item in results.get("shopping_results", []):
         site = item.get("source")
         price_str = item.get("price")
-        link = item.get("link")
+        link = item.get("link")  # Ensure we're fetching the link here
         if site and price_str:
             price_cleaned = ''.join(c for c in price_str if c.isdigit() or c == '.')
             try:
                 price = float(price_cleaned)
+                # Handle case where the link might be missing or None
+                link = link if link else "No URL available"
                 items.append((site, price, link))
             except:
                 continue
