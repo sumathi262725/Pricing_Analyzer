@@ -1,6 +1,11 @@
 streamlit>=1.30.0
 pandas>=2.0.0
 google-search-results>=2.0.2
+matplotlib>=3.7.0
+fpdf>=1.7.2
+openpyxl>=3.1.2
+xlsxwriter>=3.1.9
+
 
 
 
